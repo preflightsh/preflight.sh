@@ -29,13 +29,14 @@ checksum:
 brews:
   - name: preflight
     repository:
-      owner: preflightsh
-      name: homebrew-tap
+      owner: phillips-jon
+      name: homebrew-preflight
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     description: "Preflight CLI for launch readiness checks"
-    homepage: "https://preflight.sh"
+    homepage: "https://github.com/phillips-jon/preflight.sh"
     commit_author:
-      name: "Preflight Bot"
-      email: "bot@preflight.sh"
+      name: "GitHub Actions"
+      email: "actions@github.com"
     install: |
       bin.install "preflight"
 
