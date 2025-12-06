@@ -122,6 +122,14 @@ var AllServices = []string{
 	// AI
 	"openai",
 	"anthropic",
+	"google_ai",
+	"mistral",
+	"cohere",
+	"replicate",
+	"huggingface",
+	"groq",
+	"perplexity",
+	"together_ai",
 }
 
 // DetectServices scans the project for known service integrations
@@ -313,6 +321,30 @@ func detectServicesFromContent(content string, services map[string]bool, lang st
 	if strings.Contains(content, "anthropic") || strings.Contains(content, "@anthropic") {
 		services["anthropic"] = true
 	}
+	if strings.Contains(content, "@google/generative-ai") || strings.Contains(content, "google-generativeai") || strings.Contains(content, "gemini") {
+		services["google_ai"] = true
+	}
+	if strings.Contains(content, "mistralai") || strings.Contains(content, "@mistralai") {
+		services["mistral"] = true
+	}
+	if strings.Contains(content, "cohere") {
+		services["cohere"] = true
+	}
+	if strings.Contains(content, "replicate") {
+		services["replicate"] = true
+	}
+	if strings.Contains(content, "huggingface") || strings.Contains(content, "@huggingface") || strings.Contains(content, "transformers") {
+		services["huggingface"] = true
+	}
+	if strings.Contains(content, "groq") {
+		services["groq"] = true
+	}
+	if strings.Contains(content, "perplexity") {
+		services["perplexity"] = true
+	}
+	if strings.Contains(content, "together") && strings.Contains(content, "ai") {
+		services["together_ai"] = true
+	}
 }
 
 func detectServicesFromEnv(rootDir string, services map[string]bool) map[string]bool {
@@ -381,8 +413,16 @@ func detectServicesFromEnv(rootDir string, services map[string]bool) map[string]
 		"algolia": {"ALGOLIA_"},
 
 		// AI
-		"openai":    {"OPENAI_"},
-		"anthropic": {"ANTHROPIC_", "CLAUDE_"},
+		"openai":      {"OPENAI_"},
+		"anthropic":   {"ANTHROPIC_", "CLAUDE_"},
+		"google_ai":   {"GOOGLE_AI_", "GEMINI_", "GOOGLE_GENERATIVE_"},
+		"mistral":     {"MISTRAL_"},
+		"cohere":      {"COHERE_", "CO_API_KEY"},
+		"replicate":   {"REPLICATE_"},
+		"huggingface": {"HUGGINGFACE_", "HF_TOKEN", "HF_API_"},
+		"groq":        {"GROQ_"},
+		"perplexity":  {"PERPLEXITY_", "PPLX_"},
+		"together_ai": {"TOGETHER_", "TOGETHER_AI_"},
 	}
 
 	for _, envFile := range envFiles {

@@ -44,7 +44,7 @@ preflight scan --ci --format json
 | **Security Headers** | Validates HSTS, CSP, and other security headers |
 | **Secret Scanning** | Finds leaked API keys and credentials |
 
-## Supported Services (37)
+## Supported Services (45)
 
 Preflight auto-detects and validates configuration for these services:
 
@@ -75,8 +75,8 @@ Preflight auto-detects and validates configuration for these services:
 **Search**
 - Algolia
 
-**AI**
-- OpenAI, Anthropic Claude
+**AI / LLMs**
+- OpenAI, Anthropic Claude, Google AI (Gemini), Mistral, Cohere, Replicate, Hugging Face, Groq, Perplexity, Together AI
 
 ## Configuration
 

@@ -286,8 +286,16 @@ func formatServiceName(svc string) string {
 		"algolia": "Algolia",
 
 		// AI
-		"openai":    "OpenAI",
-		"anthropic": "Anthropic Claude",
+		"openai":      "OpenAI",
+		"anthropic":   "Anthropic Claude",
+		"google_ai":   "Google AI (Gemini)",
+		"mistral":     "Mistral AI",
+		"cohere":      "Cohere",
+		"replicate":   "Replicate",
+		"huggingface": "Hugging Face",
+		"groq":        "Groq",
+		"perplexity":  "Perplexity",
+		"together_ai": "Together AI",
 	}
 	if name, ok := names[svc]; ok {
 		return name
