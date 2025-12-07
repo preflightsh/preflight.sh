@@ -18,14 +18,26 @@ func (c RobotsTxtCheck) Title() string {
 }
 
 func (c RobotsTxtCheck) Run(ctx Context) (CheckResult, error) {
-	paths := []string{
-		"public/robots.txt",
-		"static/robots.txt",
-		"robots.txt",
-		"app/robots.txt",
+	// Common web root directories across frameworks
+	webRoots := []string{
+		"public",  // Laravel, Rails, many Node.js
+		"static",  // Hugo, some SSGs
+		"web",     // Craft CMS, Symfony
+		"www",     // Some PHP apps
+		"dist",    // Built static sites
+		"build",   // Build outputs
+		"_site",   // Jekyll
+		"out",     // Next.js static export
+		"",        // Root directory
 	}
 
-	for _, path := range paths {
+	for _, root := range webRoots {
+		var path string
+		if root == "" {
+			path = "robots.txt"
+		} else {
+			path = root + "/robots.txt"
+		}
 		fullPath := filepath.Join(ctx.RootDir, path)
 		if content, err := os.ReadFile(fullPath); err == nil {
 			// Check if it has meaningful content
@@ -86,13 +98,26 @@ func (c SitemapCheck) Title() string {
 }
 
 func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
-	paths := []string{
-		"public/sitemap.xml",
-		"static/sitemap.xml",
-		"sitemap.xml",
+	// Common web root directories across frameworks
+	webRoots := []string{
+		"public",  // Laravel, Rails, many Node.js
+		"static",  // Hugo, some SSGs
+		"web",     // Craft CMS, Symfony
+		"www",     // Some PHP apps
+		"dist",    // Built static sites
+		"build",   // Build outputs
+		"_site",   // Jekyll
+		"out",     // Next.js static export
+		"",        // Root directory
 	}
 
-	for _, path := range paths {
+	for _, root := range webRoots {
+		var path string
+		if root == "" {
+			path = "sitemap.xml"
+		} else {
+			path = root + "/sitemap.xml"
+		}
 		fullPath := filepath.Join(ctx.RootDir, path)
 		if _, err := os.Stat(fullPath); err == nil {
 			return CheckResult{
@@ -411,23 +436,38 @@ func (c LLMsTxtCheck) Title() string {
 }
 
 func (c LLMsTxtCheck) Run(ctx Context) (CheckResult, error) {
-	paths := []string{
-		"public/llms.txt",
-		"static/llms.txt",
-		"llms.txt",
-		"public/.well-known/llms.txt",
+	// Common web root directories across frameworks
+	webRoots := []string{
+		"public",  // Laravel, Rails, many Node.js
+		"static",  // Hugo, some SSGs
+		"web",     // Craft CMS, Symfony
+		"www",     // Some PHP apps
+		"dist",    // Built static sites
+		"build",   // Build outputs
+		"_site",   // Jekyll
+		"out",     // Next.js static export
+		"",        // Root directory
 	}
 
-	for _, path := range paths {
-		fullPath := filepath.Join(ctx.RootDir, path)
-		if _, err := os.Stat(fullPath); err == nil {
-			return CheckResult{
-				ID:       c.ID(),
-				Title:    c.Title(),
-				Severity: SeverityInfo,
-				Passed:   true,
-				Message:  "llms.txt found at " + path,
-			}, nil
+	// Check both root and .well-known locations
+	for _, root := range webRoots {
+		var paths []string
+		if root == "" {
+			paths = []string{"llms.txt", ".well-known/llms.txt"}
+		} else {
+			paths = []string{root + "/llms.txt", root + "/.well-known/llms.txt"}
+		}
+		for _, path := range paths {
+			fullPath := filepath.Join(ctx.RootDir, path)
+			if _, err := os.Stat(fullPath); err == nil {
+				return CheckResult{
+					ID:       c.ID(),
+					Title:    c.Title(),
+					Severity: SeverityInfo,
+					Passed:   true,
+					Message:  "llms.txt found at " + path,
+				}, nil
+			}
 		}
 	}
 

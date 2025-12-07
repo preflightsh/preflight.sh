@@ -20,16 +20,36 @@ func (c FaviconCheck) Run(ctx Context) (CheckResult, error) {
 	var found []string
 	var missing []string
 
+	// Common web root directories across frameworks
+	webRoots := []string{
+		"public",  // Laravel, Rails, many Node.js
+		"static",  // Hugo, some SSGs
+		"web",     // Craft CMS, Symfony
+		"www",     // Some PHP apps
+		"dist",    // Built static sites
+		"build",   // Build outputs
+		"_site",   // Jekyll
+		"out",     // Next.js static export
+		"app",     // Next.js App Router
+		"",        // Root directory
+	}
+
 	// Check for common favicon locations
-	faviconPaths := []string{
-		"public/favicon.ico",
-		"public/favicon.png",
-		"public/favicon.svg",
-		"favicon.ico",
-		"app/favicon.ico",
-		"app/icon.png",
-		"app/icon.svg",
-		"static/favicon.ico",
+	faviconFiles := []string{"favicon.ico", "favicon.png", "favicon.svg", "favicon.webp", "icon.png", "icon.svg"}
+	var faviconPaths []string
+	for _, root := range webRoots {
+		for _, file := range faviconFiles {
+			if root == "" {
+				faviconPaths = append(faviconPaths, file)
+			} else {
+				faviconPaths = append(faviconPaths, root+"/"+file)
+				// Also check assets subdirectories
+				faviconPaths = append(faviconPaths, root+"/assets/"+file)
+				faviconPaths = append(faviconPaths, root+"/assets/images/"+file)
+				faviconPaths = append(faviconPaths, root+"/images/"+file)
+				faviconPaths = append(faviconPaths, root+"/img/"+file)
+			}
+		}
 	}
 
 	hasFavicon := false
@@ -47,12 +67,16 @@ func (c FaviconCheck) Run(ctx Context) (CheckResult, error) {
 	}
 
 	// Check for Apple Touch Icon
-	appleTouchPaths := []string{
-		"public/apple-touch-icon.png",
-		"public/apple-icon.png",
-		"app/apple-icon.png",
-		"app/apple-touch-icon.png",
-		"static/apple-touch-icon.png",
+	var appleTouchPaths []string
+	for _, root := range webRoots {
+		if root == "" {
+			appleTouchPaths = append(appleTouchPaths, "apple-touch-icon.png", "apple-icon.png")
+		} else {
+			appleTouchPaths = append(appleTouchPaths,
+				root+"/apple-touch-icon.png",
+				root+"/apple-icon.png",
+			)
+		}
 	}
 
 	hasAppleIcon := false
@@ -84,13 +108,18 @@ func (c FaviconCheck) Run(ctx Context) (CheckResult, error) {
 	}
 
 	// Check for web app manifest
-	manifestPaths := []string{
-		"public/manifest.json",
-		"public/site.webmanifest",
-		"app/manifest.json",
-		"app/manifest.ts",
-		"app/manifest.js",
-		"static/manifest.json",
+	var manifestPaths []string
+	for _, root := range webRoots {
+		if root == "" {
+			manifestPaths = append(manifestPaths, "manifest.json", "site.webmanifest")
+		} else {
+			manifestPaths = append(manifestPaths,
+				root+"/manifest.json",
+				root+"/site.webmanifest",
+				root+"/manifest.ts",
+				root+"/manifest.js",
+			)
+		}
 	}
 
 	hasManifest := false
