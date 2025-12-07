@@ -16,27 +16,35 @@ func (c SecurityHeadersCheck) Title() string {
 }
 
 func (c SecurityHeadersCheck) Run(ctx Context) (CheckResult, error) {
-	// Need a production URL to check
-	if ctx.Config.URLs.Production == "" {
+	// Use staging URL if available, otherwise production
+	// This allows checking headers before deploying to production
+	checkURL := ctx.Config.URLs.Staging
+	urlType := "staging"
+	if checkURL == "" {
+		checkURL = ctx.Config.URLs.Production
+		urlType = "production"
+	}
+
+	if checkURL == "" {
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  "No production URL configured, skipping",
+			Message:  "No staging or production URL configured, skipping",
 		}, nil
 	}
 
-	resp, err := ctx.Client.Get(ctx.Config.URLs.Production)
+	resp, err := ctx.Client.Get(checkURL)
 	if err != nil {
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityWarn,
 			Passed:   false,
-			Message:  fmt.Sprintf("Could not reach production URL: %v", err),
+			Message:  fmt.Sprintf("Could not reach %s URL: %v", urlType, err),
 			Suggestions: []string{
-				"Ensure production URL is accessible",
+				fmt.Sprintf("Ensure %s URL is accessible", urlType),
 			},
 		}, nil
 	}
