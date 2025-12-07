@@ -308,7 +308,29 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
-	// Craft CMS: Check for SEOmatic or native sitemap
+	// Craft CMS: Check for SEO plugins in composer.json
+	craftComposerPath := filepath.Join(ctx.RootDir, "composer.json")
+	if content, err := os.ReadFile(craftComposerPath); err == nil {
+		// Check for Craft CMS SEO plugins that generate sitemaps
+		craftSeoPlugins := []string{
+			"nystudio107/craft-seomatic",
+			"ether/seo",
+			"doublesecretagency/craft-sitemap",
+		}
+		for _, plugin := range craftSeoPlugins {
+			if strings.Contains(string(content), plugin) {
+				return CheckResult{
+					ID:       c.ID(),
+					Title:    c.Title(),
+					Severity: SeverityInfo,
+					Passed:   true,
+					Message:  "sitemap.xml generated via Craft CMS SEO plugin",
+				}, nil
+			}
+		}
+	}
+
+	// Craft CMS: Check for SEOmatic config
 	craftSitemapPaths := []string{
 		"config/seomatic.php",
 		"config/sitemap.php",

@@ -89,8 +89,9 @@ func (c FaviconCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
-	// Also check HTML for apple-touch-icon link
+	// Also check HTML/templates for apple-touch-icon link
 	if !hasAppleIcon {
+		// Check configured layout first
 		cfg := ctx.Config.Checks.SEOMeta
 		if cfg != nil && cfg.MainLayout != "" {
 			layoutPath := filepath.Join(ctx.RootDir, cfg.MainLayout)
@@ -98,6 +99,33 @@ func (c FaviconCheck) Run(ctx Context) (CheckResult, error) {
 				if regexp.MustCompile(`(?i)apple-touch-icon`).Match(content) {
 					hasAppleIcon = true
 					found = append(found, "apple-touch-icon (in HTML)")
+				}
+			}
+		}
+
+		// Check common template locations
+		if !hasAppleIcon {
+			templatePaths := []string{
+				"templates/_layout.twig",           // Craft CMS
+				"templates/_layout.html",           // Craft CMS
+				"templates/_head.twig",             // Craft CMS partials
+				"templates/_head.html",
+				"templates/_partials/head.twig",    // Craft CMS partials
+				"templates/_partials/header.twig",  // Craft CMS partials
+				"app/views/layouts/application.html.erb", // Rails
+				"resources/views/layouts/app.blade.php",  // Laravel
+				"_includes/head.html",              // Jekyll
+				"layouts/_default/baseof.html",     // Hugo
+				"src/layouts/Layout.astro",         // Astro
+			}
+			for _, tplPath := range templatePaths {
+				fullPath := filepath.Join(ctx.RootDir, tplPath)
+				if content, err := os.ReadFile(fullPath); err == nil {
+					if regexp.MustCompile(`(?i)apple-touch-icon`).Match(content) {
+						hasAppleIcon = true
+						found = append(found, "apple-touch-icon (in HTML)")
+						break
+					}
 				}
 			}
 		}
