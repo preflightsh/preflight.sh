@@ -50,7 +50,7 @@ preflight scan --ci --format json
 | **sitemap.xml** | Checks for sitemap presence or generator |
 | **llms.txt** | Checks for LLM crawler guidance file |
 | **ads.txt** | Validates ads.txt for ad-supported sites (optional) |
-| **LICENSE** | Checks for license file and detects license type |
+| **LICENSE** | Checks for license file (opt-in, for open source projects) |
 
 ## Supported Services (45)
 
@@ -121,6 +121,9 @@ checks:
   seoMeta:
     enabled: true
     mainLayout: "app/views/layouts/application.html.erb"
+
+  license:
+    enabled: true  # opt-in, for open source projects
 ```
 
 ## Exit Codes
