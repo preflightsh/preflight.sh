@@ -36,6 +36,7 @@ type ChecksConfig struct {
 	Secrets        *SecretsConfig        `yaml:"secrets,omitempty"`
 	AdsTxt         *AdsTxtConfig         `yaml:"adsTxt,omitempty"`
 	License        *LicenseConfig        `yaml:"license,omitempty"`
+	IndexNow       *IndexNowConfig       `yaml:"indexNow,omitempty"`
 }
 
 type EnvParityConfig struct {
@@ -81,6 +82,11 @@ type AdsTxtConfig struct {
 
 type LicenseConfig struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+type IndexNowConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Key     string `yaml:"key"`
 }
 
 // Load reads and parses the preflight.yml config file

@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -583,6 +584,105 @@ func (c AdsTxtCheck) Run(ctx Context) (CheckResult, error) {
 		Suggestions: []string{
 			"Add ads.txt for authorized digital sellers",
 			"Required if running programmatic ads",
+		},
+	}, nil
+}
+
+// IndexNowCheck verifies IndexNow key file exists with correct content
+type IndexNowCheck struct{}
+
+func (c IndexNowCheck) ID() string {
+	return "indexNow"
+}
+
+func (c IndexNowCheck) Title() string {
+	return "IndexNow key file is present"
+}
+
+func (c IndexNowCheck) Run(ctx Context) (CheckResult, error) {
+	// Check if IndexNow check is enabled in config
+	if ctx.Config.Checks.IndexNow == nil || !ctx.Config.Checks.IndexNow.Enabled {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "IndexNow check not enabled",
+		}, nil
+	}
+
+	key := ctx.Config.Checks.IndexNow.Key
+	if key == "" {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityWarn,
+			Passed:   false,
+			Message:  "IndexNow enabled but no key configured",
+			Suggestions: []string{
+				"Add your IndexNow key to preflight.yml",
+			},
+		}, nil
+	}
+
+	// Common web root directories across frameworks
+	webRoots := []string{
+		"public",  // Laravel, Rails, many Node.js
+		"static",  // Hugo, some SSGs
+		"web",     // Craft CMS, Symfony
+		"www",     // Some PHP apps
+		"dist",    // Built static sites
+		"build",   // Build outputs
+		"_site",   // Jekyll
+		"out",     // Next.js static export
+		"",        // Root directory
+	}
+
+	// Check for key file in root or .well-known
+	for _, root := range webRoots {
+		var paths []string
+		if root == "" {
+			paths = []string{key + ".txt", ".well-known/" + key + ".txt"}
+		} else {
+			paths = []string{root + "/" + key + ".txt", root + "/.well-known/" + key + ".txt"}
+		}
+		for _, path := range paths {
+			fullPath := filepath.Join(ctx.RootDir, path)
+			if content, err := os.ReadFile(fullPath); err == nil {
+				contentStr := strings.TrimSpace(string(content))
+				if contentStr == key {
+					return CheckResult{
+						ID:       c.ID(),
+						Title:    c.Title(),
+						Severity: SeverityInfo,
+						Passed:   true,
+						Message:  "IndexNow key file found at " + path,
+					}, nil
+				} else if len(contentStr) > 0 {
+					return CheckResult{
+						ID:       c.ID(),
+						Title:    c.Title(),
+						Severity: SeverityWarn,
+						Passed:   false,
+						Message:  "IndexNow key file content doesn't match configured key",
+						Suggestions: []string{
+							fmt.Sprintf("Update %s to contain: %s", path, key),
+						},
+					}, nil
+				}
+			}
+		}
+	}
+
+	return CheckResult{
+		ID:       c.ID(),
+		Title:    c.Title(),
+		Severity: SeverityWarn,
+		Passed:   false,
+		Message:  "IndexNow key file not found",
+		Suggestions: []string{
+			fmt.Sprintf("Create %s.txt in your web root containing: %s", key, key),
+			"Or place it at .well-known/" + key + ".txt",
 		},
 	}, nil
 }

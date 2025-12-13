@@ -188,6 +188,11 @@ func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 		enabledChecks = append(enabledChecks, checks.AdsTxtCheck{})
 	}
 
+	// IndexNow Check - only if explicitly enabled
+	if cfg.Checks.IndexNow != nil && cfg.Checks.IndexNow.Enabled {
+		enabledChecks = append(enabledChecks, checks.IndexNowCheck{})
+	}
+
 	return enabledChecks
 }
 

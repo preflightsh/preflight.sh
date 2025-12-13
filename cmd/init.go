@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"bufio"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -95,6 +98,32 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Ask about ads
 	hasAds := promptYesNo(reader, "Does this site run ads or advertisements?", false)
 
+	// Ask about IndexNow
+	var indexNowKey string
+	if promptYesNo(reader, "Do you use IndexNow for faster search engine indexing?", false) {
+		fmt.Println("  1. Paste existing key")
+		fmt.Println("  2. Generate new key")
+		choice := promptWithDefault(reader, "  Choose", "2")
+		if choice == "1" {
+			indexNowKey = promptOptional(reader, "  Paste your IndexNow key")
+		} else {
+			indexNowKey = generateIndexNowKey()
+			fmt.Printf("  Generated key: %s\n", indexNowKey)
+
+			// Create the key file in the web root
+			webRoot := detectWebRoot(cwd, stack)
+			keyFilePath := filepath.Join(cwd, webRoot, indexNowKey+".txt")
+			if err := os.MkdirAll(filepath.Dir(keyFilePath), 0755); err == nil {
+				if err := os.WriteFile(keyFilePath, []byte(indexNowKey+"\n"), 0644); err == nil {
+					fmt.Printf("  ✅ Created %s/%s.txt\n", webRoot, indexNowKey)
+				} else {
+					fmt.Printf("  ⚠️  Could not create key file: %v\n", err)
+					fmt.Printf("     Create %s/%s.txt containing: %s\n", webRoot, indexNowKey, indexNowKey)
+				}
+			}
+		}
+	}
+
 	// Build config
 	cfg := config.PreflightConfig{
 		ProjectName: projectName,
@@ -104,7 +133,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			Production: productionURL,
 		},
 		Services: confirmedServices,
-		Checks:   buildDefaultChecks(cwd, stack, confirmedServices, productionURL, hasLicense, hasAds),
+		Checks:   buildDefaultChecks(cwd, stack, confirmedServices, productionURL, hasLicense, hasAds, indexNowKey),
 	}
 
 	// Write config file
@@ -115,6 +144,43 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	fmt.Printf("✅ Created %s\n", configPath)
+
+	// Check and update .gitignore
+	gitignorePath := filepath.Join(cwd, ".gitignore")
+	gitignoreUpdated := false
+	if content, err := os.ReadFile(gitignorePath); err == nil {
+		// .gitignore exists, check if preflight.yml is already in it
+		if !strings.Contains(string(content), "preflight.yml") {
+			if promptYesNo(reader, "Add preflight.yml to .gitignore?", true) {
+				// Append to .gitignore
+				f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
+				if err == nil {
+					// Add newline if file doesn't end with one
+					if len(content) > 0 && content[len(content)-1] != '\n' {
+						f.WriteString("\n")
+					}
+					f.WriteString("preflight.yml\n")
+					f.Close()
+					gitignoreUpdated = true
+					fmt.Println("✅ Added preflight.yml to .gitignore")
+				}
+			}
+		}
+	} else if os.IsNotExist(err) {
+		// No .gitignore exists, offer to create one
+		if promptYesNo(reader, "Create .gitignore with preflight.yml?", true) {
+			os.WriteFile(gitignorePath, []byte("preflight.yml\n"), 0644)
+			gitignoreUpdated = true
+			fmt.Println("✅ Created .gitignore with preflight.yml")
+		}
+	}
+
+	if !gitignoreUpdated {
+		fmt.Println()
+		fmt.Println("⚠️  Remember: preflight.yml may contain sensitive URLs.")
+		fmt.Println("   Consider adding it to your .gitignore")
+	}
+
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Println("  1. Review and customize preflight.yml")
@@ -163,7 +229,7 @@ func getDefaultProjectName(cwd string) string {
 	return "my-project"
 }
 
-func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceConfig, productionURL string, hasLicense bool, hasAds bool) config.ChecksConfig {
+func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceConfig, productionURL string, hasLicense bool, hasAds bool, indexNowKey string) config.ChecksConfig {
 	checks := config.ChecksConfig{
 		EnvParity: &config.EnvParityConfig{
 			Enabled:     true,
@@ -191,6 +257,10 @@ func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceCon
 		},
 		AdsTxt: &config.AdsTxtConfig{
 			Enabled: hasAds,
+		},
+		IndexNow: &config.IndexNowConfig{
+			Enabled: indexNowKey != "",
+			Key:     indexNowKey,
 		},
 	}
 
@@ -287,13 +357,13 @@ func formatServiceName(svc string) string {
 		"aws_ses":    "AWS SES",
 		"resend":     "Resend",
 		"mailchimp":  "Mailchimp",
-		"convertkit": "ConvertKit",
+		"convertkit": "Kit",
 
 		// Analytics
 		"plausible":        "Plausible Analytics",
 		"fathom":           "Fathom Analytics",
-		"fullres":          "Fullres",
-		"datafast":         "Datafast",
+		"fullres":          "Fullres Analytics",
+		"datafast":         "Datafa.st Analytics",
 		"google_analytics": "Google Analytics",
 		"mixpanel":         "Mixpanel",
 		"amplitude":        "Amplitude",
@@ -509,4 +579,47 @@ func detectGemVersion(cwd, gem string) string {
 		}
 	}
 	return ""
+}
+
+func generateIndexNowKey() string {
+	// Generate a 32-character hex string (16 bytes)
+	bytes := make([]byte, 16)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
+}
+
+func detectWebRoot(cwd, stack string) string {
+	// Stack-specific web roots
+	stackRoots := map[string]string{
+		"rails":     "public",
+		"laravel":   "public",
+		"next":      "public",
+		"node":      "public",
+		"craft":     "web",
+		"symfony":   "public",
+		"django":    "static",
+		"hugo":      "static",
+		"jekyll":    "_site",
+		"gatsby":    "public",
+		"astro":     "public",
+		"eleventy":  "_site",
+		"wordpress": "",
+		"drupal":    "web",
+		"ghost":     "content",
+	}
+
+	if root, ok := stackRoots[stack]; ok && root != "" {
+		return root
+	}
+
+	// Check for common web root directories
+	commonRoots := []string{"public", "static", "web", "www", "dist", "build", "_site", "out"}
+	for _, root := range commonRoots {
+		if info, err := os.Stat(filepath.Join(cwd, root)); err == nil && info.IsDir() {
+			return root
+		}
+	}
+
+	// Default to public
+	return "public"
 }
