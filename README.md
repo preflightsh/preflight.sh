@@ -40,19 +40,21 @@ preflight scan --ci --format json
 |-------|-------------|
 | **ENV Parity** | Compares `.env` and `.env.example` for missing variables |
 | **Health Endpoint** | Verifies `/health` is reachable on staging/production |
+| **Vulnerability Scan** | Checks for dependency vulnerabilities (bundle audit, npm audit, etc.) |
 | **SEO Metadata** | Checks for title, description, and Open Graph tags |
 | **OG & Twitter Cards** | Validates og:image, twitter:card and social sharing metadata |
-| **Security Headers** | Validates HSTS, CSP, X-Content-Type-Options, Referrer-Policy |
+| **Security Headers** | Validates HSTS, CSP, X-Content-Type-Options on both prod and staging |
 | **SSL Certificate** | Checks SSL validity and warns before expiration |
 | **Secret Scanning** | Finds leaked API keys and credentials in code |
-| **Favicon & Icons** | Checks for favicon, apple-touch-icon, and web manifest |
-| **robots.txt** | Verifies robots.txt exists for search engines |
+| **Favicon & Icons** | Checks for favicon, apple-touch-icon (.png, .webp, .svg), and web manifest |
+| **robots.txt** | Verifies robots.txt exists and has content |
 | **sitemap.xml** | Checks for sitemap presence or generator |
 | **llms.txt** | Checks for LLM crawler guidance file |
-| **ads.txt** | Validates ads.txt for ad-supported sites (optional) |
+| **ads.txt** | Validates ads.txt for ad-supported sites (opt-in) |
+| **IndexNow** | Verifies IndexNow key file for faster search indexing (opt-in) |
 | **LICENSE** | Checks for license file (opt-in, for open source projects) |
 
-## Supported Services (47)
+## Supported Services (48)
 
 Preflight auto-detects and validates configuration for these services:
 
@@ -63,10 +65,10 @@ Preflight auto-detects and validates configuration for these services:
 - Sentry, Bugsnag, Rollbar, Honeybadger, Datadog, New Relic, LogRocket
 
 **Email**
-- Postmark, SendGrid, Mailgun, AWS SES, Resend, Mailchimp, ConvertKit
+- Postmark, SendGrid, Mailgun, AWS SES, Resend, Mailchimp, Kit
 
 **Analytics**
-- Plausible, Fathom, Fullres, Datafast, Google Analytics, Mixpanel, Amplitude, Segment, Hotjar
+- Plausible, Fathom, Fullres Analytics, Datafa.st Analytics, Google Analytics, Mixpanel, Amplitude, Segment, Hotjar
 
 **Auth**
 - Auth0, Clerk, Firebase, Supabase
@@ -83,6 +85,9 @@ Preflight auto-detects and validates configuration for these services:
 **Search**
 - Algolia
 
+**SEO**
+- IndexNow
+
 **AI / LLMs**
 - OpenAI, Anthropic Claude, Google AI (Gemini), Mistral, Cohere, Replicate, Hugging Face, Grok (X/Twitter), Perplexity, Together AI
 
@@ -92,7 +97,7 @@ Preflight uses a `preflight.yml` file in your project root:
 
 ```yaml
 projectName: my-app
-stack: rails  # rails, next, node, laravel, static
+stack: rails  # rails, next, react, vite, laravel, etc.
 
 urls:
   staging: "https://staging.example.com"
@@ -122,8 +127,15 @@ checks:
     enabled: true
     mainLayout: "app/views/layouts/application.html.erb"
 
+  security:
+    enabled: true
+
+  indexNow:
+    enabled: true
+    key: "your32characterhexkeyhere00000"
+
   license:
-    enabled: true  # opt-in, for open source projects
+    enabled: false  # opt-in, for open source projects
 ```
 
 ## Exit Codes
@@ -136,8 +148,11 @@ checks:
 
 ## Supported Stacks
 
-**Frameworks**
-- Ruby on Rails, Next.js, Node.js (Express), Laravel, Go, Python/Django, Rust
+**Backend Frameworks**
+- Ruby on Rails, Laravel, Go, Python/Django, Rust, Node.js
+
+**Frontend Frameworks**
+- Next.js, React, Vue.js, Vite, Svelte, Angular
 
 **Traditional CMS**
 - WordPress, Craft CMS, Drupal, Ghost
