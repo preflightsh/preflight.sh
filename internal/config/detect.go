@@ -2,10 +2,14 @@ package config
 
 import (
 	"bufio"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // DetectStack determines the project stack based on files present
@@ -547,24 +551,30 @@ func detectServicesFromEnv(rootDir string, services map[string]bool) map[string]
 }
 
 func detectAnalyticsScripts(rootDir string, services map[string]bool) {
+	// Patterns for detecting services in HTML or script content
 	patterns := map[string]*regexp.Regexp{
-		"plausible":        regexp.MustCompile(`plausible\.io/js/`),
-		"fathom":           regexp.MustCompile(`(usefathom\.com|cdn\.usefathom\.com)`),
-		"fullres":          regexp.MustCompile(`fullres\.com`),
-		"datafast":         regexp.MustCompile(`datafa\.st`),
+		"plausible":        regexp.MustCompile(`plausible\.io/js/|plausible`),
+		"fathom":           regexp.MustCompile(`(usefathom\.com|cdn\.usefathom\.com|fathom)`),
+		"fullres":          regexp.MustCompile(`fullres`),
+		"datafast":         regexp.MustCompile(`datafa\.st|datafast`),
 		"google_analytics": regexp.MustCompile(`(googletagmanager\.com|google-analytics\.com|gtag\(|ga\()`),
-		"hotjar":           regexp.MustCompile(`hotjar\.com`),
+		"hotjar":           regexp.MustCompile(`hotjar\.com|hotjar`),
 		"intercom":         regexp.MustCompile(`intercom`),
-		"crisp":            regexp.MustCompile(`crisp\.chat`),
+		"crisp":            regexp.MustCompile(`crisp\.chat|crisp`),
 		"mixpanel":         regexp.MustCompile(`mixpanel`),
 		"segment":          regexp.MustCompile(`segment\.com|analytics\.js`),
 	}
+
+	// Regex to find script src URLs
+	scriptSrcRe := regexp.MustCompile(`<script[^>]+src=["']([^"']+)["']`)
 
 	htmlFiles := []string{
 		"index.html",
 		"public/index.html",
 		"app/views/layouts/application.html.erb",
 		"resources/views/layouts/app.blade.php",
+		"templates/_layout.twig",
+		"templates/_layout.html",
 		"app/layout.tsx",
 		"app/layout.js",
 		"pages/_app.tsx",
@@ -573,6 +583,9 @@ func detectAnalyticsScripts(rootDir string, services map[string]bool) {
 		"pages/_document.js",
 	}
 
+	// Collect external script URLs to fetch
+	var externalScripts []string
+
 	for _, htmlFile := range htmlFiles {
 		path := filepath.Join(rootDir, htmlFile)
 		content, err := os.ReadFile(path)
@@ -580,12 +593,102 @@ func detectAnalyticsScripts(rootDir string, services map[string]bool) {
 			continue
 		}
 
+		// Check HTML content directly for known patterns
 		for service, pattern := range patterns {
 			if pattern.Match(content) {
 				services[service] = true
 			}
 		}
+
+		// Extract external script URLs
+		matches := scriptSrcRe.FindAllSubmatch(content, -1)
+		for _, match := range matches {
+			if len(match) > 1 {
+				src := string(match[1])
+				// Only fetch http/https URLs (not relative paths)
+				if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
+					externalScripts = append(externalScripts, src)
+				}
+			}
+		}
 	}
+
+	// Fetch and check external scripts (limit to avoid slowdown)
+	if len(externalScripts) > 0 {
+		detectServicesFromExternalScripts(externalScripts, services, patterns)
+	}
+}
+
+func detectServicesFromExternalScripts(urls []string, services map[string]bool, patterns map[string]*regexp.Regexp) {
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	// Limit to first 10 scripts to avoid slowdown
+	maxScripts := 10
+	if len(urls) > maxScripts {
+		urls = urls[:maxScripts]
+	}
+
+	// Overall timeout for all external script checking
+	overallDeadline := time.Now().Add(15 * time.Second)
+
+	fmt.Print("Checking external scripts")
+
+	for _, url := range urls {
+		// Check if we've exceeded overall timeout
+		if time.Now().After(overallDeadline) {
+			fmt.Println(" (timeout)")
+			return
+		}
+
+		fmt.Print(".")
+
+		resp, err := client.Get(url)
+		if err != nil {
+			// Check if it was a timeout
+			if strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "deadline") {
+				// Extract domain for cleaner message
+				domain := extractDomain(url)
+				fmt.Printf("\n  ⚠️  %s timed out", domain)
+			}
+			continue
+		}
+
+		if resp.StatusCode != 200 {
+			resp.Body.Close()
+			continue
+		}
+
+		// Read up to 100KB of the script
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+		resp.Body.Close()
+		if err != nil {
+			continue
+		}
+
+		content := strings.ToLower(string(body))
+
+		// Check for service patterns in the script content
+		for service, pattern := range patterns {
+			if pattern.MatchString(content) {
+				services[service] = true
+			}
+		}
+	}
+
+	fmt.Println(" done")
+}
+
+func extractDomain(url string) string {
+	// Remove protocol
+	url = strings.TrimPrefix(url, "https://")
+	url = strings.TrimPrefix(url, "http://")
+	// Get just the domain part
+	if idx := strings.Index(url, "/"); idx != -1 {
+		url = url[:idx]
+	}
+	return url
 }
 
 func fileExists(rootDir, relativePath string) bool {
