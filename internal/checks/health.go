@@ -51,7 +51,7 @@ func (c HealthCheck) Run(ctx Context) (CheckResult, error) {
 
 	var lastErr error
 	for _, url := range urls {
-		resp, err := ctx.Client.Get(url)
+		resp, actualURL, err := tryURL(ctx.Client, url)
 		if err != nil {
 			lastErr = err
 			continue
@@ -64,7 +64,7 @@ func (c HealthCheck) Run(ctx Context) (CheckResult, error) {
 				Title:    c.Title(),
 				Severity: SeverityInfo,
 				Passed:   true,
-				Message:  fmt.Sprintf("Health endpoint at %s returned 200 OK", url),
+				Message:  fmt.Sprintf("Health endpoint at %s returned 200 OK", actualURL),
 			}, nil
 		}
 		lastErr = fmt.Errorf("returned status %d", resp.StatusCode)

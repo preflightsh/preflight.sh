@@ -35,7 +35,7 @@ func (c SecurityHeadersCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
-	resp, err := ctx.Client.Get(checkURL)
+	resp, actualURL, err := tryURL(ctx.Client, checkURL)
 	if err != nil {
 		return CheckResult{
 			ID:       c.ID(),
@@ -49,6 +49,7 @@ func (c SecurityHeadersCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 	defer resp.Body.Close()
+	_ = actualURL // Used URL for the check
 
 	// Required security headers
 	requiredHeaders := []string{
