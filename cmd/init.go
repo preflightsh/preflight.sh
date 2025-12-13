@@ -115,7 +115,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		if indexNowKey != "" {
 			fmt.Printf("IndexNow detected with key: %s\n", indexNowKey)
 		} else {
-			fmt.Println("IndexNow detected but no key found in .env files")
+			fmt.Println("IndexNow detected but no key found in .env files or web root")
 			indexNowKey = promptOptional(reader, "  Paste your IndexNow key")
 		}
 		// Remove from confirmedServices since we handle it separately
