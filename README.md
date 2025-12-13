@@ -1,4 +1,4 @@
-# Preflight CLI
+# Preflight.sh
 
 A command-line tool that scans your codebase for launch readiness. Identifies missing configuration, integration issues, security concerns, SEO metadata gaps, and other common mistakes before you deploy to production.
 
