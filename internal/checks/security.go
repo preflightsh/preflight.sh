@@ -16,13 +16,13 @@ func (c SecurityHeadersCheck) Title() string {
 }
 
 func (c SecurityHeadersCheck) Run(ctx Context) (CheckResult, error) {
-	// Use staging URL if available, otherwise production
-	// This allows checking headers before deploying to production
-	checkURL := ctx.Config.URLs.Staging
-	urlType := "staging"
+	// Prefer production URL for security headers (HSTS matters there)
+	// Fall back to staging if no production URL
+	checkURL := ctx.Config.URLs.Production
+	urlType := "production"
 	if checkURL == "" {
-		checkURL = ctx.Config.URLs.Production
-		urlType = "production"
+		checkURL = ctx.Config.URLs.Staging
+		urlType = "staging"
 	}
 
 	if checkURL == "" {
@@ -49,14 +49,20 @@ func (c SecurityHeadersCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 	defer resp.Body.Close()
-	_ = actualURL // Used URL for the check
+
+	// Check if we're using HTTPS (HSTS only makes sense over HTTPS)
+	isHTTPS := strings.HasPrefix(actualURL, "https://")
 
 	// Required security headers
 	requiredHeaders := []string{
-		"Strict-Transport-Security",
 		"X-Content-Type-Options",
 		"Referrer-Policy",
 		"Content-Security-Policy",
+	}
+
+	// Only check HSTS over HTTPS connections
+	if isHTTPS {
+		requiredHeaders = append([]string{"Strict-Transport-Security"}, requiredHeaders...)
 	}
 
 	var missing []string
