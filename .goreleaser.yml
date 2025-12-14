@@ -37,7 +37,7 @@ brews:
       name: homebrew-preflight
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     description: "Preflight CLI for launch readiness checks"
-    homepage: "https://github.com/preflightsh/preflight.sh"
+    homepage: "https://github.com/preflightsh/preflight"
     commit_author:
       name: "GitHub Actions"
       email: "actions@github.com"

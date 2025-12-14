@@ -25,12 +25,12 @@ go install github.com/preflightsh/preflight@latest
 ### Shell Script
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/preflightsh/preflight.sh/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/preflightsh/preflight/main/install.sh | sh
 ```
 
 ### Manual Download
 
-Download the latest release from [GitHub Releases](https://github.com/preflightsh/preflight.sh/releases).
+Download the latest release from [GitHub Releases](https://github.com/preflightsh/preflight/releases).
 
 ## Quick Start
 
@@ -184,7 +184,7 @@ checks:
 # GitHub Actions example
 - name: Run Preflight
   run: |
-    curl -sSL https://raw.githubusercontent.com/preflightsh/preflight.sh/main/install.sh | sh
+    curl -sSL https://raw.githubusercontent.com/preflightsh/preflight/main/install.sh | sh
     preflight scan --ci --format json
 ```
 
