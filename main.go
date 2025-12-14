@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/phillips-jon/preflight/cmd"
+	"github.com/preflightsh/preflight/cmd"
 )
 
 func main() {

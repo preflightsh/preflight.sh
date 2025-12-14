@@ -1,4 +1,4 @@
-module github.com/phillips-jon/preflight
+module github.com/preflightsh/preflight
 
 go 1.25.5
 

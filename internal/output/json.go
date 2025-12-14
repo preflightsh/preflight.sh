@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/phillips-jon/preflight/internal/checks"
+	"github.com/preflightsh/preflight/internal/checks"
 )
 
 type JSONOutputter struct{}

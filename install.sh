@@ -4,7 +4,7 @@
 
 set -e
 
-REPO="phillips-jon/preflight.sh"
+REPO="preflightsh/preflight.sh"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="preflight"
 

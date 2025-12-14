@@ -16,7 +16,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/phillips-jon/preflight/cmd.version={{.Version}}
+      - -s -w -X github.com/preflightsh/preflight/cmd.version={{.Version}}
 
 archives:
   - formats:
@@ -33,11 +33,11 @@ checksum:
 brews:
   - name: preflight
     repository:
-      owner: phillips-jon
+      owner: preflightsh
       name: homebrew-preflight
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     description: "Preflight CLI for launch readiness checks"
-    homepage: "https://github.com/phillips-jon/preflight.sh"
+    homepage: "https://github.com/preflightsh/preflight.sh"
     commit_author:
       name: "GitHub Actions"
       email: "actions@github.com"

@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/phillips-jon/preflight/internal/checks"
-	"github.com/phillips-jon/preflight/internal/config"
-	"github.com/phillips-jon/preflight/internal/output"
+	"github.com/preflightsh/preflight/internal/checks"
+	"github.com/preflightsh/preflight/internal/config"
+	"github.com/preflightsh/preflight/internal/output"
 	"github.com/spf13/cobra"
 )
 

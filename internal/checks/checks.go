@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/phillips-jon/preflight/internal/config"
+	"github.com/preflightsh/preflight/internal/config"
 )
 
 type Severity string

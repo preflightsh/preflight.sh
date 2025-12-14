@@ -1,6 +1,6 @@
 package output
 
-import "github.com/phillips-jon/preflight/internal/checks"
+import "github.com/preflightsh/preflight/internal/checks"
 
 type Outputter interface {
 	Output(projectName string, results []checks.CheckResult)

@@ -7,18 +7,18 @@ A command-line tool that scans your codebase for launch readiness. Identifies mi
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew install phillips-jon/preflight/preflight
+brew install preflightsh/preflight/preflight
 ```
 
 ### Shell Script
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/phillips-jon/preflight.sh/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/preflightsh/preflight.sh/main/install.sh | sh
 ```
 
 ### Manual Download
 
-Download the latest release from [GitHub Releases](https://github.com/phillips-jon/preflight.sh/releases).
+Download the latest release from [GitHub Releases](https://github.com/preflightsh/preflight.sh/releases).
 
 ## Quick Start
 
@@ -172,7 +172,7 @@ checks:
 # GitHub Actions example
 - name: Run Preflight
   run: |
-    curl -sSL https://raw.githubusercontent.com/phillips-jon/preflight.sh/main/install.sh | sh
+    curl -sSL https://raw.githubusercontent.com/preflightsh/preflight.sh/main/install.sh | sh
     preflight scan --ci --format json
 ```
 
