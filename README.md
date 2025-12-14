@@ -10,6 +10,12 @@ A command-line tool that scans your codebase for launch readiness. Identifies mi
 brew install preflightsh/preflight/preflight
 ```
 
+### npm
+
+```bash
+npm install -g @preflightsh/preflight
+```
+
 ### Shell Script
 
 ```bash
