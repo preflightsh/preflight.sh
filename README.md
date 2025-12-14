@@ -16,6 +16,12 @@ brew install preflightsh/preflight/preflight
 npm install -g @preflightsh/preflight
 ```
 
+### Go
+
+```bash
+go install github.com/preflightsh/preflight@latest
+```
+
 ### Shell Script
 
 ```bash
