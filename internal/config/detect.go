@@ -348,6 +348,9 @@ func DetectServices(rootDir string) map[string]bool {
 	// Check for analytics scripts in HTML files
 	detectAnalyticsScripts(rootDir, services)
 
+	// Check for IndexNow key files in web roots
+	detectIndexNowKeyFile(rootDir, services)
+
 	return services
 }
 
@@ -1006,4 +1009,25 @@ func fileExists(rootDir, relativePath string) bool {
 	path := filepath.Join(rootDir, relativePath)
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// detectIndexNowKeyFile checks for IndexNow key files (32-char hex .txt files) in web roots
+func detectIndexNowKeyFile(rootDir string, services map[string]bool) {
+	webRoots := []string{"public", "web", "static", "_site", "dist", ""}
+	hexPattern := regexp.MustCompile(`^[a-f0-9]{32}\.txt$`)
+
+	for _, root := range webRoots {
+		dir := filepath.Join(rootDir, root)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && hexPattern.MatchString(entry.Name()) {
+				// Found an IndexNow key file
+				services["indexnow"] = true
+				return
+			}
+		}
+	}
 }
