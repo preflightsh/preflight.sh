@@ -33,7 +33,7 @@ curl -sSL https://raw.githubusercontent.com/preflightsh/preflight/main/install.s
 ### Docker
 
 ```bash
-docker run -v $(pwd):/app ghcr.io/preflightsh/preflight scan
+docker pull ghcr.io/preflightsh/preflight
 ```
 
 ### Manual Download
