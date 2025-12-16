@@ -24,16 +24,16 @@ npm install -g @preflightsh/preflight
 go install github.com/preflightsh/preflight@latest
 ```
 
-### Shell Script
-
-```bash
-curl -sSL https://raw.githubusercontent.com/preflightsh/preflight/main/install.sh | sh
-```
-
 ### Docker
 
 ```bash
 docker pull ghcr.io/preflightsh/preflight
+```
+
+### Shell Script
+
+```bash
+curl -sSL https://raw.githubusercontent.com/preflightsh/preflight/main/install.sh | sh
 ```
 
 ### Manual Download
