@@ -30,6 +30,8 @@ func init() {
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
+	CheckForUpdates()
+
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("🚀 Initializing Preflight...")

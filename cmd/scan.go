@@ -32,6 +32,10 @@ func init() {
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
+	if !ciMode {
+		CheckForUpdates()
+	}
+
 	// Get current directory
 	cwd, err := os.Getwd()
 	if err != nil {
