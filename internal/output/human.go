@@ -53,6 +53,10 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"LICENSE":   "📜",
 		"DEPS":      "📦",
 		"INDEXNOW":  "🔗",
+		"MOBILE":    "📱",
+		"LANG":      "🌐",
+		"PAGES":     "📃",
+		"DEBUG":     "🐞",
 	}
 
 	// Map check IDs to display categories
@@ -109,8 +113,13 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"llmsTxt":         "FILES",
 		"adsTxt":          "FILES",
 		"license":         "LICENSE",
-		"vulnerability":   "DEPS",
-		"indexNow":        "INDEXNOW",
+		"vulnerability":     "DEPS",
+		"indexNow":          "INDEXNOW",
+		"canonical":         "SEO",
+		"viewport":          "MOBILE",
+		"lang":              "LANG",
+		"error_pages":       "PAGES",
+		"debug_statements":  "DEBUG",
 	}
 
 	// Print results
