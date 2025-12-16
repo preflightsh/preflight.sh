@@ -119,6 +119,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Ask about humans.txt
 	checkHumansTxt := promptYesNo(reader, "Got a humans.txt crediting the team?", false)
 
+	// Ask about cookie consent
+	checkCookieConsent := promptYesNo(reader, "Does this site use cookies requiring user consent (GDPR/CCPA)?", false)
+
 	// Handle IndexNow - user already confirmed/declined in services section
 	var indexNowKey string
 	indexNowConfirmed := confirmedServices["indexnow"].Declared
@@ -165,7 +168,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			Production: productionURL,
 		},
 		Services: confirmedServices,
-		Checks:   buildDefaultChecks(cwd, stack, confirmedServices, productionURL, hasLicense, hasAds, indexNowKey, checkEmailAuth, checkHumansTxt),
+		Checks:   buildDefaultChecks(cwd, stack, confirmedServices, productionURL, hasLicense, hasAds, indexNowKey, checkEmailAuth, checkHumansTxt, checkCookieConsent),
 	}
 
 	// Write config file
@@ -280,7 +283,7 @@ func getDefaultProjectName(cwd string) string {
 	return "my-project"
 }
 
-func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceConfig, productionURL string, hasLicense bool, hasAds bool, indexNowKey string, checkEmailAuth bool, checkHumansTxt bool) config.ChecksConfig {
+func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceConfig, productionURL string, hasLicense bool, hasAds bool, indexNowKey string, checkEmailAuth bool, checkHumansTxt bool, checkCookieConsent bool) config.ChecksConfig {
 	checks := config.ChecksConfig{
 		EnvParity: &config.EnvParityConfig{
 			Enabled:     true,
@@ -318,6 +321,9 @@ func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceCon
 		},
 		HumansTxt: &config.HumansTxtConfig{
 			Enabled: checkHumansTxt,
+		},
+		CookieConsent: &config.CookieConsentConfig{
+			Enabled: checkCookieConsent,
 		},
 	}
 

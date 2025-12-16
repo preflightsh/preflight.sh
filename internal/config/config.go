@@ -40,6 +40,7 @@ type ChecksConfig struct {
 	IndexNow       *IndexNowConfig       `yaml:"indexNow,omitempty"`
 	EmailAuth      *EmailAuthConfig      `yaml:"emailAuth,omitempty"`
 	HumansTxt      *HumansTxtConfig      `yaml:"humansTxt,omitempty"`
+	CookieConsent  *CookieConsentConfig  `yaml:"cookieConsent,omitempty"`
 }
 
 type EnvParityConfig struct {
@@ -97,6 +98,10 @@ type EmailAuthConfig struct {
 }
 
 type HumansTxtConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type CookieConsentConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 

@@ -183,14 +183,14 @@ var listChecksCmd = &cobra.Command{
 	Short: "List all available check IDs",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		checkIDs := []string{
-			"seoMeta", "canonical", "structured_data", "indexNow",
+			"seoMeta", "canonical", "structured_data", "indexNow (opt-in)",
 			"ogTwitter", "viewport", "lang",
-			"securityHeaders", "ssl", "www_redirect", "email_auth", "secrets",
+			"securityHeaders", "ssl", "www_redirect", "email_auth (opt-in)", "secrets",
 			"envParity", "healthEndpoint",
 			"sentry", "plausible", "fathom", "googleAnalytics", "redis", "sidekiq", "stripe",
 			"vulnerability", "debug_statements", "error_pages", "image_optimization",
-			"legal_pages", "cookie_consent",
-			"favicon", "robotsTxt", "sitemap", "llmsTxt", "adsTxt", "humansTxt", "license",
+			"legal_pages", "cookie_consent (opt-in)",
+			"favicon", "robotsTxt", "sitemap", "llmsTxt", "adsTxt (opt-in)", "humansTxt (opt-in)", "license (opt-in)",
 		}
 
 		fmt.Println("Available check IDs:")
