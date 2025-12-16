@@ -119,32 +119,46 @@ func (c WWWRedirectCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
-	// Both resolve - check if they redirect to the same canonical URL
+	// Both resolve - check if they end up at the same domain
 	wwwFinalHost := extractHost(wwwFinal)
 	nonWwwFinalHost := extractHost(nonWwwFinal)
 
-	if wwwFinalHost == nonWwwFinalHost {
-		// Good - both redirect to the same canonical version
-		canonical := "non-www"
-		if strings.HasPrefix(wwwFinalHost, "www.") {
-			canonical = "www"
+	// Normalize: strip www. prefix for comparison
+	wwwNormalized := strings.TrimPrefix(wwwFinalHost, "www.")
+	nonWwwNormalized := strings.TrimPrefix(nonWwwFinalHost, "www.")
+
+	if wwwNormalized == nonWwwNormalized {
+		// Both end up at the same domain (with or without www)
+		if wwwFinalHost == nonWwwFinalHost {
+			canonical := "non-www"
+			if strings.HasPrefix(wwwFinalHost, "www.") {
+				canonical = "www"
+			}
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  fmt.Sprintf("Both redirect to %s (%s)", canonical, wwwFinalHost),
+			}, nil
 		}
+		// Both work but serve on their respective domains (no redirect)
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  fmt.Sprintf("Both redirect to %s (%s)", canonical, wwwFinalHost),
+			Message:  "Both www and non-www resolve correctly",
 		}, nil
 	}
 
-	// Both resolve but don't redirect to same place
+	// Both resolve but to completely different domains
 	return CheckResult{
 		ID:       c.ID(),
 		Title:    c.Title(),
 		Severity: SeverityWarn,
 		Passed:   false,
-		Message:  "www and non-www resolve to different destinations",
+		Message:  "www and non-www resolve to different domains",
 		Suggestions: []string{
 			"Configure redirects so both point to your canonical URL",
 			fmt.Sprintf("www → %s, non-www → %s", wwwFinalHost, nonWwwFinalHost),

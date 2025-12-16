@@ -117,7 +117,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	checkEmailAuth := promptYesNo(reader, "Check email deliverability on prod (SPF/DMARC records)?", false)
 
 	// Ask about humans.txt
-	checkHumansTxt := promptYesNo(reader, "Add humans.txt to credit the team?", false)
+	checkHumansTxt := promptYesNo(reader, "Got a humans.txt crediting the team?", false)
 
 	// Handle IndexNow - user already confirmed/declined in services section
 	var indexNowKey string
