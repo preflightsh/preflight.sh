@@ -808,6 +808,65 @@ func (c IndexNowCheck) Run(ctx Context) (CheckResult, error) {
 	}, nil
 }
 
+// HumansTxtCheck verifies humans.txt exists (optional, credits the team)
+type HumansTxtCheck struct{}
+
+func (c HumansTxtCheck) ID() string {
+	return "humansTxt"
+}
+
+func (c HumansTxtCheck) Title() string {
+	return "humans.txt"
+}
+
+func (c HumansTxtCheck) Run(ctx Context) (CheckResult, error) {
+	if ctx.Config.Checks.HumansTxt == nil || !ctx.Config.Checks.HumansTxt.Enabled {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "humans.txt check not enabled",
+		}, nil
+	}
+
+	webRoots := []string{"public", "static", "web", "www", "dist", "build", "_site", "out", ""}
+
+	for _, root := range webRoots {
+		var path string
+		if root == "" {
+			path = "humans.txt"
+		} else {
+			path = root + "/humans.txt"
+		}
+		fullPath := filepath.Join(ctx.RootDir, path)
+		if content, err := os.ReadFile(fullPath); err == nil {
+			contentStr := strings.TrimSpace(string(content))
+			if len(contentStr) > 0 {
+				return CheckResult{
+					ID:       c.ID(),
+					Title:    c.Title(),
+					Severity: SeverityInfo,
+					Passed:   true,
+					Message:  "humans.txt found at " + path,
+				}, nil
+			}
+		}
+	}
+
+	return CheckResult{
+		ID:       c.ID(),
+		Title:    c.Title(),
+		Severity: SeverityWarn,
+		Passed:   false,
+		Message:  "humans.txt not found",
+		Suggestions: []string{
+			"Add humans.txt to credit the team behind the site",
+			"See https://humanstxt.org for format",
+		},
+	}, nil
+}
+
 // findMonorepoNextFiles searches for files in monorepo structures with Next.js App Router
 // convention (apps/*/src/app/, packages/*/src/app/, apps/*/app/)
 func findMonorepoNextFiles(rootDir string, filenames []string) []string {

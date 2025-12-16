@@ -222,6 +222,11 @@ func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 		enabledChecks = append(enabledChecks, checks.IndexNowCheck{})
 	}
 
+	// Humans.txt Check - only if explicitly enabled
+	if cfg.Checks.HumansTxt != nil && cfg.Checks.HumansTxt.Enabled {
+		enabledChecks = append(enabledChecks, checks.HumansTxtCheck{})
+	}
+
 	return enabledChecks
 }
 

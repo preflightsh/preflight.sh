@@ -38,6 +38,7 @@ type ChecksConfig struct {
 	License        *LicenseConfig        `yaml:"license,omitempty"`
 	IndexNow       *IndexNowConfig       `yaml:"indexNow,omitempty"`
 	EmailAuth      *EmailAuthConfig      `yaml:"emailAuth,omitempty"`
+	HumansTxt      *HumansTxtConfig      `yaml:"humansTxt,omitempty"`
 }
 
 type EnvParityConfig struct {
@@ -91,6 +92,10 @@ type IndexNowConfig struct {
 }
 
 type EmailAuthConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type HumansTxtConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 

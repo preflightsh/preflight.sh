@@ -124,6 +124,7 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"structured_data":      "SEO",
 		"image_optimization":   "PERF",
 		"email_auth":           "EMAIL",
+		"humansTxt":            "FILES",
 	}
 
 	// Print results
