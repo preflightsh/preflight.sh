@@ -67,6 +67,21 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// Build list of enabled checks
 	enabledChecks := buildEnabledChecks(cfg)
 
+	// Filter out ignored checks
+	if len(cfg.Ignore) > 0 {
+		ignoreMap := make(map[string]bool)
+		for _, id := range cfg.Ignore {
+			ignoreMap[id] = true
+		}
+		var filtered []checks.Check
+		for _, check := range enabledChecks {
+			if !ignoreMap[check.ID()] {
+				filtered = append(filtered, check)
+			}
+		}
+		enabledChecks = filtered
+	}
+
 	// Run all checks
 	var results []checks.CheckResult
 	for _, check := range enabledChecks {

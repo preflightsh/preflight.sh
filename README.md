@@ -52,6 +52,15 @@ preflight scan
 
 # Run in CI mode with JSON output
 preflight scan --ci --format json
+
+# Silence a check
+preflight ignore sitemap
+
+# Unsilence a check
+preflight unignore sitemap
+
+# List all check IDs
+preflight checks
 ```
 
 ## What It Checks
@@ -75,6 +84,7 @@ preflight scan --ci --format json
 | **Debug Statements** | Detects console.log, var_dump, debugger left in code |
 | **Error Pages** | Checks for custom 404/500 error pages |
 | **Image Optimization** | Finds large images (>500KB) that hurt load times |
+| **Legal Pages** | Checks for privacy policy and terms of service pages |
 | **Favicon & Icons** | Checks for favicon, apple-touch-icon (.png, .webp, .svg), and web manifest |
 | **robots.txt** | Verifies robots.txt exists and has content |
 | **sitemap.xml** | Checks for sitemap presence or generator |
@@ -172,6 +182,11 @@ checks:
 
   license:
     enabled: false  # opt-in, for open source projects
+
+# Silence specific checks by ID
+ignore:
+  - sitemap
+  - llmsTxt
 ```
 
 ## Exit Codes

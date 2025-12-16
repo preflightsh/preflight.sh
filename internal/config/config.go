@@ -14,6 +14,7 @@ type PreflightConfig struct {
 	URLs        URLConfig                `yaml:"urls,omitempty"`
 	Services    map[string]ServiceConfig `yaml:"services,omitempty"`
 	Checks      ChecksConfig             `yaml:"checks,omitempty"`
+	Ignore      []string                 `yaml:"ignore,omitempty"`
 }
 
 type URLConfig struct {
