@@ -88,6 +88,9 @@ func (c StructuredDataCheck) Run(ctx Context) (CheckResult, error) {
 }
 
 func hasStructuredData(content, stack string) bool {
+	// Strip comments to avoid false positives on commented-out code
+	content = stripComments(content)
+
 	// JSON-LD script tag
 	jsonLD := regexp.MustCompile(`(?i)<script[^>]+type=["']application/ld\+json["'][^>]*>`)
 	if jsonLD.MatchString(content) {

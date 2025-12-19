@@ -2,6 +2,7 @@ package checks
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/preflightsh/preflight/internal/config"
@@ -220,4 +221,36 @@ func tryURL(client *http.Client, url string) (*http.Response, string, error) {
 	// Non-local URL, just try it directly
 	resp, err := doGet(client, url)
 	return resp, url, err
+}
+
+// stripComments removes common comment syntax from code to avoid false positives
+// when pattern matching. Supports JS/TS, HTML, Twig/Jinja, ERB, and PHP comments.
+func stripComments(content string) string {
+	// Remove single-line comments (// ...)
+	singleLine := regexp.MustCompile(`//[^\n]*`)
+	content = singleLine.ReplaceAllString(content, "")
+
+	// Remove multi-line comments (/* ... */) including JSX comments ({/* ... */})
+	multiLine := regexp.MustCompile(`(?s)/\*.*?\*/`)
+	content = multiLine.ReplaceAllString(content, "")
+
+	// Remove HTML comments (<!-- ... -->)
+	htmlComments := regexp.MustCompile(`(?s)<!--.*?-->`)
+	content = htmlComments.ReplaceAllString(content, "")
+
+	// Remove Twig/Jinja comments ({# ... #})
+	twigComments := regexp.MustCompile(`(?s)\{#.*?#\}`)
+	content = twigComments.ReplaceAllString(content, "")
+
+	// Remove ERB comments (<%# ... %>)
+	erbComments := regexp.MustCompile(`(?s)<%#.*?%>`)
+	content = erbComments.ReplaceAllString(content, "")
+
+	// Remove Python/Ruby/Shell single-line comments (# ...)
+	// Be careful not to remove Twig tags or hex colors
+	// Only remove if # is at start of line (with optional whitespace)
+	hashComments := regexp.MustCompile(`(?m)^\s*#[^{].*$`)
+	content = hashComments.ReplaceAllString(content, "")
+
+	return content
 }

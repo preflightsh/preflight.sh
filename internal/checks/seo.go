@@ -52,7 +52,8 @@ func (c SEOMetadataCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
-	contentStr := string(content)
+	// Strip comments to avoid false positives on commented-out code
+	contentStr := stripComments(string(content))
 
 	// Required SEO elements
 	checks := map[string]*regexp.Regexp{
@@ -213,11 +214,9 @@ func checkAlternatePatterns(content, name string) bool {
 		},
 		"og:title": {
 			regexp.MustCompile(`property:\s*["']og:title["']`),
-			regexp.MustCompile(`openGraph.*title`),
 		},
 		"og:description": {
 			regexp.MustCompile(`property:\s*["']og:description["']`),
-			regexp.MustCompile(`openGraph.*description`),
 		},
 	}
 
@@ -229,5 +228,104 @@ func checkAlternatePatterns(content, name string) bool {
 		}
 	}
 
+	// Check for Next.js Metadata API (handles multi-line)
+	if hasNextJSMetadata(content, name) {
+		return true
+	}
+
 	return false
+}
+
+// hasNextJSMetadata checks for Next.js App Router Metadata API patterns
+func hasNextJSMetadata(content, name string) bool {
+	// Check if this looks like a Next.js metadata export
+	metadataExport := regexp.MustCompile(`(?s)export\s+(const|let|var)\s+metadata\s*[=:]`)
+	if !metadataExport.MatchString(content) {
+		return false
+	}
+
+	// Find the start of the metadata object using brace matching
+	metadataStart := regexp.MustCompile(`(?s)export\s+(?:const|let|var)\s+metadata[^=]*=\s*\{`)
+	loc := metadataStart.FindStringIndex(content)
+	if loc == nil {
+		return false
+	}
+
+	// Extract metadata block with proper brace matching
+	metadataContent := extractBraceBlockSEO(content, loc[1]-1)
+	if metadataContent == "" {
+		return false
+	}
+
+	switch name {
+	case "title":
+		// title: "..." or title: '...' or title: `...`
+		titlePattern := regexp.MustCompile(`(?m)^\s*title\s*:\s*["'\x60]`)
+		return titlePattern.MatchString(metadataContent)
+
+	case "description":
+		// description: "..." at the top level of metadata
+		descPattern := regexp.MustCompile(`(?m)^\s*description\s*:\s*["'\x60]`)
+		return descPattern.MatchString(metadataContent)
+
+	case "og:title":
+		// openGraph: { ... title: ... }
+		ogBlock := extractNestedBlockSEO(metadataContent, "openGraph")
+		if ogBlock != "" {
+			titleInOG := regexp.MustCompile(`(?m)title\s*:\s*["'\x60]`)
+			return titleInOG.MatchString(ogBlock)
+		}
+		return false
+
+	case "og:description":
+		// openGraph: { ... description: ... }
+		ogBlock := extractNestedBlockSEO(metadataContent, "openGraph")
+		if ogBlock != "" {
+			descInOG := regexp.MustCompile(`(?m)description\s*:\s*["'\x60]`)
+			return descInOG.MatchString(ogBlock)
+		}
+		return false
+	}
+
+	return false
+}
+
+// extractBraceBlockSEO extracts content between matching braces starting at pos
+func extractBraceBlockSEO(content string, pos int) string {
+	if pos >= len(content) || content[pos] != '{' {
+		return ""
+	}
+	depth := 0
+	inString := false
+	stringChar := byte(0)
+	for i := pos; i < len(content); i++ {
+		c := content[i]
+		// Handle string literals to avoid counting braces inside strings
+		if !inString && (c == '"' || c == '\'' || c == '`') {
+			inString = true
+			stringChar = c
+		} else if inString && c == stringChar && (i == 0 || content[i-1] != '\\') {
+			inString = false
+		} else if !inString {
+			if c == '{' {
+				depth++
+			} else if c == '}' {
+				depth--
+				if depth == 0 {
+					return content[pos : i+1]
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// extractNestedBlockSEO extracts a nested object block like openGraph: { ... }
+func extractNestedBlockSEO(content, key string) string {
+	pattern := regexp.MustCompile(`(?s)` + key + `\s*:\s*\{`)
+	loc := pattern.FindStringIndex(content)
+	if loc == nil {
+		return ""
+	}
+	return extractBraceBlockSEO(content, loc[1]-1)
 }

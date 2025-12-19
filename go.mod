@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/image v0.34.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

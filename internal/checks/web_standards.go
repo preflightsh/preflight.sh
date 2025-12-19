@@ -74,15 +74,26 @@ func (c RobotsTxtCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
-	// Also check for Next.js robots.ts/js (standard and src/app patterns)
-	nextRobotsPaths := []string{
-		"app/robots.ts",
-		"app/robots.js",
-		"src/app/robots.ts",
-		"src/app/robots.js",
+	// Check for dynamic robots.txt generation across JS/TS frameworks
+	jsRobotsPaths := []string{
+		// Next.js App Router
+		"app/robots.ts", "app/robots.tsx", "app/robots.js", "app/robots.jsx",
+		"src/app/robots.ts", "src/app/robots.tsx", "src/app/robots.js", "src/app/robots.jsx",
+		// SvelteKit
+		"src/routes/robots.txt/+server.ts", "src/routes/robots.txt/+server.js",
+		// Nuxt
+		"server/routes/robots.txt.ts", "server/routes/robots.txt.js",
+		"server/routes/robots.txt.get.ts", "server/routes/robots.txt.get.js",
+		// Remix
+		"app/routes/robots[.]txt.ts", "app/routes/robots[.]txt.tsx",
+		"app/routes/robots.txt.ts", "app/routes/robots.txt.tsx",
+		// Angular
+		"src/assets/robots.txt",
+		// Eleventy
+		"src/robots.txt.njk", "src/robots.txt.liquid", "robots.txt.njk", "robots.txt.liquid",
 	}
 
-	for _, path := range nextRobotsPaths {
+	for _, path := range jsRobotsPaths {
 		fullPath := filepath.Join(ctx.RootDir, path)
 		if _, err := os.Stat(fullPath); err == nil {
 			return CheckResult{
@@ -96,7 +107,7 @@ func (c RobotsTxtCheck) Run(ctx Context) (CheckResult, error) {
 	}
 
 	// Check monorepo structures for Next.js App Router robots
-	monorepoRobotsPaths := findMonorepoNextFiles(ctx.RootDir, []string{"robots.ts", "robots.js"})
+	monorepoRobotsPaths := findMonorepoNextFiles(ctx.RootDir, []string{"robots.ts", "robots.tsx", "robots.js", "robots.jsx"})
 	for _, path := range monorepoRobotsPaths {
 		if _, err := os.Stat(path); err == nil {
 			relPath, _ := filepath.Rel(ctx.RootDir, path)
@@ -189,17 +200,29 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
-	// Check for Next.js sitemap generator (standard and src/app patterns)
-	nextSitemapPaths := []string{
-		"app/sitemap.ts",
-		"app/sitemap.js",
-		"app/sitemap.xml/route.ts",
-		"src/app/sitemap.ts",
-		"src/app/sitemap.js",
-		"src/app/sitemap.xml/route.ts",
+	// Check for dynamic sitemap generation across JS/TS frameworks
+	jsSitemapPaths := []string{
+		// Next.js App Router
+		"app/sitemap.ts", "app/sitemap.tsx", "app/sitemap.js", "app/sitemap.jsx",
+		"app/sitemap.xml/route.ts", "app/sitemap.xml/route.tsx", "app/sitemap.xml/route.js", "app/sitemap.xml/route.jsx",
+		"src/app/sitemap.ts", "src/app/sitemap.tsx", "src/app/sitemap.js", "src/app/sitemap.jsx",
+		"src/app/sitemap.xml/route.ts", "src/app/sitemap.xml/route.tsx", "src/app/sitemap.xml/route.js", "src/app/sitemap.xml/route.jsx",
+		// SvelteKit
+		"src/routes/sitemap.xml/+server.ts", "src/routes/sitemap.xml/+server.js",
+		// Nuxt
+		"server/routes/sitemap.xml.ts", "server/routes/sitemap.xml.js",
+		"server/routes/sitemap.xml.get.ts", "server/routes/sitemap.xml.get.js",
+		// Remix
+		"app/routes/sitemap[.]xml.ts", "app/routes/sitemap[.]xml.tsx",
+		"app/routes/sitemap.xml.ts", "app/routes/sitemap.xml.tsx",
+		// Angular (universal/SSR)
+		"src/assets/sitemap.xml",
+		// Eleventy
+		"src/sitemap.njk", "src/sitemap.liquid", "sitemap.njk", "sitemap.liquid",
+		"src/sitemap.11ty.js", "sitemap.11ty.js",
 	}
 
-	for _, path := range nextSitemapPaths {
+	for _, path := range jsSitemapPaths {
 		fullPath := filepath.Join(ctx.RootDir, path)
 		if _, err := os.Stat(fullPath); err == nil {
 			return CheckResult{
@@ -213,7 +236,7 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 	}
 
 	// Check monorepo structures for Next.js App Router sitemap
-	monorepoSitemapPaths := findMonorepoNextFiles(ctx.RootDir, []string{"sitemap.ts", "sitemap.js"})
+	monorepoSitemapPaths := findMonorepoNextFiles(ctx.RootDir, []string{"sitemap.ts", "sitemap.tsx", "sitemap.js", "sitemap.jsx"})
 	for _, path := range monorepoSitemapPaths {
 		if _, err := os.Stat(path); err == nil {
 			relPath, _ := filepath.Rel(ctx.RootDir, path)
@@ -227,13 +250,15 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
-	// Check for dynamic sitemap generation across various frameworks
+	// Check for dynamic sitemap generation across backend frameworks
 	dynamicSitemapPaths := []string{
-		// Rails
+		// Ruby on Rails
 		"app/controllers/sitemap_controller.rb",
 		"app/controllers/sitemaps_controller.rb",
+		"config/sitemap.rb", // sitemap_generator gem config
 		// Laravel
 		"app/Http/Controllers/SitemapController.php",
+		"routes/sitemap.php",
 		// Django
 		"sitemaps.py",
 		// Phoenix/Elixir
@@ -242,6 +267,13 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 		"handlers/sitemap.go",
 		"internal/handlers/sitemap.go",
 		"pkg/handlers/sitemap.go",
+		"cmd/server/sitemap.go",
+		// Rust (Actix, Axum)
+		"src/routes/sitemap.rs",
+		"src/handlers/sitemap.rs",
+		// Node.js/Express
+		"routes/sitemap.js", "routes/sitemap.ts",
+		"src/routes/sitemap.js", "src/routes/sitemap.ts",
 		// ASP.NET
 		"Controllers/SitemapController.cs",
 	}
@@ -486,6 +518,54 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
+	// Nuxt: Check for @nuxtjs/sitemap module
+	nuxtConfigs := []string{"nuxt.config.ts", "nuxt.config.js"}
+	for _, cfg := range nuxtConfigs {
+		fullPath := filepath.Join(ctx.RootDir, cfg)
+		if content, err := os.ReadFile(fullPath); err == nil {
+			if strings.Contains(string(content), "@nuxtjs/sitemap") || strings.Contains(string(content), "sitemap") {
+				return CheckResult{
+					ID:       c.ID(),
+					Title:    c.Title(),
+					Severity: SeverityInfo,
+					Passed:   true,
+					Message:  "sitemap.xml generated via Nuxt sitemap module",
+				}, nil
+			}
+		}
+	}
+
+	// SvelteKit: Check for sitemap in svelte.config.js
+	svelteConfig := filepath.Join(ctx.RootDir, "svelte.config.js")
+	if content, err := os.ReadFile(svelteConfig); err == nil {
+		if strings.Contains(string(content), "sitemap") {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "sitemap.xml configured via SvelteKit",
+			}, nil
+		}
+	}
+
+	// Eleventy: Check for sitemap in .eleventy.js or eleventy.config.js
+	eleventyConfigs := []string{".eleventy.js", "eleventy.config.js", "eleventy.config.cjs", "eleventy.config.mjs"}
+	for _, cfg := range eleventyConfigs {
+		fullPath := filepath.Join(ctx.RootDir, cfg)
+		if content, err := os.ReadFile(fullPath); err == nil {
+			if strings.Contains(string(content), "sitemap") {
+				return CheckResult{
+					ID:       c.ID(),
+					Title:    c.Title(),
+					Severity: SeverityInfo,
+					Passed:   true,
+					Message:  "sitemap.xml configured via Eleventy",
+				}, nil
+			}
+		}
+	}
+
 	// Ghost: Built-in sitemap (Ghost always has /sitemap.xml)
 	ghostConfig := filepath.Join(ctx.RootDir, "content/themes")
 	if info, err := os.Stat(ghostConfig); err == nil && info.IsDir() {
@@ -589,6 +669,87 @@ func (c LLMsTxtCheck) Run(ctx Context) (CheckResult, error) {
 					Message:  "llms.txt found at " + relPath,
 				}, nil
 			}
+		}
+	}
+
+	// Check for dynamic llms.txt generation across JS/TS frameworks
+	jsLLMsPaths := []string{
+		// Next.js App Router
+		"app/llms.txt/route.ts", "app/llms.txt/route.tsx", "app/llms.txt/route.js", "app/llms.txt/route.jsx",
+		"app/.well-known/llms.txt/route.ts", "app/.well-known/llms.txt/route.tsx",
+		"src/app/llms.txt/route.ts", "src/app/llms.txt/route.tsx", "src/app/llms.txt/route.js", "src/app/llms.txt/route.jsx",
+		"src/app/.well-known/llms.txt/route.ts", "src/app/.well-known/llms.txt/route.tsx",
+		// SvelteKit
+		"src/routes/llms.txt/+server.ts", "src/routes/llms.txt/+server.js",
+		"src/routes/.well-known/llms.txt/+server.ts", "src/routes/.well-known/llms.txt/+server.js",
+		// Nuxt
+		"server/routes/llms.txt.ts", "server/routes/llms.txt.js",
+		"server/routes/llms.txt.get.ts", "server/routes/llms.txt.get.js",
+		// Remix
+		"app/routes/llms[.]txt.ts", "app/routes/llms[.]txt.tsx",
+		"app/routes/llms.txt.ts", "app/routes/llms.txt.tsx",
+		// Angular
+		"src/assets/llms.txt",
+		// Eleventy
+		"src/llms.txt.njk", "src/llms.txt.liquid", "llms.txt.njk", "llms.txt.liquid",
+	}
+
+	for _, path := range jsLLMsPaths {
+		fullPath := filepath.Join(ctx.RootDir, path)
+		if _, err := os.Stat(fullPath); err == nil {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "llms.txt generated via " + path,
+			}, nil
+		}
+	}
+
+	// Check monorepo structures for Next.js App Router llms.txt
+	monorepoLLMsPaths := findMonorepoNextFiles(ctx.RootDir, []string{
+		"llms.txt/route.ts", "llms.txt/route.tsx", "llms.txt/route.js", "llms.txt/route.jsx",
+	})
+	for _, path := range monorepoLLMsPaths {
+		if _, err := os.Stat(path); err == nil {
+			relPath, _ := filepath.Rel(ctx.RootDir, path)
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "llms.txt generated via " + relPath,
+			}, nil
+		}
+	}
+
+	// Check for dynamic llms.txt in backend frameworks
+	backendLLMsPaths := []string{
+		// Ruby on Rails
+		"app/controllers/llms_controller.rb",
+		// Laravel
+		"app/Http/Controllers/LlmsController.php",
+		"routes/llms.php",
+		// Go
+		"handlers/llms.go", "internal/handlers/llms.go",
+		// Rust
+		"src/routes/llms.rs", "src/handlers/llms.rs",
+		// Node.js/Express
+		"routes/llms.js", "routes/llms.ts",
+		"src/routes/llms.js", "src/routes/llms.ts",
+	}
+
+	for _, path := range backendLLMsPaths {
+		fullPath := filepath.Join(ctx.RootDir, path)
+		if _, err := os.Stat(fullPath); err == nil {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "llms.txt generated via " + path,
+			}, nil
 		}
 	}
 

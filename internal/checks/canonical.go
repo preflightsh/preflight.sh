@@ -83,6 +83,9 @@ func (c CanonicalURLCheck) Run(ctx Context) (CheckResult, error) {
 }
 
 func hasCanonicalURL(content, stack string) bool {
+	// Strip comments to avoid false positives on commented-out code
+	content = stripCommentsCanonical(content)
+
 	// Standard HTML canonical link
 	htmlCanonical := regexp.MustCompile(`(?i)<link[^>]+rel=["']canonical["'][^>]*>`)
 	if htmlCanonical.MatchString(content) {
@@ -289,4 +292,29 @@ func getCanonicalSuggestions(stack string) []string {
 			"Add <link rel=\"canonical\" href=\"...\"> to your <head>",
 		}
 	}
+}
+
+// stripCommentsCanonical removes comments from code to avoid false positives
+func stripCommentsCanonical(content string) string {
+	// Remove single-line comments (// ...)
+	singleLine := regexp.MustCompile(`//[^\n]*`)
+	content = singleLine.ReplaceAllString(content, "")
+
+	// Remove multi-line comments (/* ... */) including JSX comments ({/* ... */})
+	multiLine := regexp.MustCompile(`(?s)/\*.*?\*/`)
+	content = multiLine.ReplaceAllString(content, "")
+
+	// Remove HTML comments (<!-- ... -->)
+	htmlComments := regexp.MustCompile(`(?s)<!--.*?-->`)
+	content = htmlComments.ReplaceAllString(content, "")
+
+	// Remove Twig/Jinja comments ({# ... #})
+	twigComments := regexp.MustCompile(`(?s)\{#.*?#\}`)
+	content = twigComments.ReplaceAllString(content, "")
+
+	// Remove ERB comments (<%# ... %>)
+	erbComments := regexp.MustCompile(`(?s)<%#.*?%>`)
+	content = erbComments.ReplaceAllString(content, "")
+
+	return content
 }

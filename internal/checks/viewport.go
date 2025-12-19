@@ -19,6 +19,17 @@ func (c ViewportCheck) Title() string {
 func (c ViewportCheck) Run(ctx Context) (CheckResult, error) {
 	cfg := ctx.Config.Checks.SEOMeta
 
+	// Next.js App Router automatically adds viewport meta tag
+	if isNextJSAppRouter(ctx.RootDir) {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "Next.js App Router (viewport auto-generated)",
+		}, nil
+	}
+
 	// Get configured layout or auto-detect
 	var configuredLayout string
 	if cfg != nil {
@@ -86,6 +97,9 @@ func (c ViewportCheck) Run(ctx Context) (CheckResult, error) {
 }
 
 func hasViewportMeta(content, stack string) bool {
+	// Strip comments to avoid false positives on commented-out code
+	content = stripComments(content)
+
 	// Standard HTML viewport meta tag
 	htmlViewport := regexp.MustCompile(`(?i)<meta[^>]+name=["']viewport["'][^>]*>`)
 	if htmlViewport.MatchString(content) {
@@ -122,6 +136,26 @@ func hasViewportMeta(content, stack string) bool {
 		return true
 	}
 
+	return false
+}
+
+// isNextJSAppRouter checks if the project uses Next.js App Router
+func isNextJSAppRouter(rootDir string) bool {
+	// Check for app directory with layout file (App Router signature)
+	appRouterLayouts := []string{
+		"app/layout.tsx",
+		"app/layout.js",
+		"app/layout.jsx",
+		"src/app/layout.tsx",
+		"src/app/layout.js",
+		"src/app/layout.jsx",
+	}
+
+	for _, layout := range appRouterLayouts {
+		if _, err := os.Stat(filepath.Join(rootDir, layout)); err == nil {
+			return true
+		}
+	}
 	return false
 }
 

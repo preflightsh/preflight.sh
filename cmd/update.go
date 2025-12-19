@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -28,10 +30,59 @@ func CheckForUpdates() {
 
 	if isNewerVersion(latest, version) {
 		fmt.Println()
-		fmt.Printf("📦 A new version of Preflight is available: %s (current: %s)\n", latest, version)
-		fmt.Printf("   %s\n", getUpgradeCommand())
+		fmt.Printf("📦 A new version of Preflight is available: %s → %s\n", version, latest)
+		fmt.Print("   Install now? [Y/n] ")
+
+		reader := bufio.NewReader(os.Stdin)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			// If we can't read input, just show the command
+			fmt.Printf("   Run: %s\n", getUpgradeCommand())
+			return
+		}
+
+		response = strings.TrimSpace(strings.ToLower(response))
+		if response == "" || response == "y" || response == "yes" {
+			runUpgrade()
+		} else {
+			fmt.Printf("   To upgrade later: %s\n", getUpgradeCommand())
+		}
 		fmt.Println()
 	}
+}
+
+// runUpgrade executes the appropriate upgrade command
+func runUpgrade() {
+	upgradeCmd := getUpgradeCommand()
+	fmt.Printf("   Running: %s\n", upgradeCmd)
+
+	// Parse the command
+	parts := strings.Fields(upgradeCmd)
+	if len(parts) == 0 {
+		fmt.Println("   ✗ Could not determine upgrade command")
+		return
+	}
+
+	// Handle piped commands (curl ... | sh)
+	if strings.Contains(upgradeCmd, "|") {
+		cmd := exec.Command("sh", "-c", upgradeCmd)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("   ✗ Upgrade failed: %v\n", err)
+			return
+		}
+	} else {
+		cmd := exec.Command(parts[0], parts[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("   ✗ Upgrade failed: %v\n", err)
+			return
+		}
+	}
+
+	fmt.Println("   ✓ Upgrade complete!")
 }
 
 func fetchLatestVersion() (string, error) {

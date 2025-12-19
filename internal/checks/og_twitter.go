@@ -1,10 +1,17 @@
 package checks
 
 import (
+	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	_ "golang.org/x/image/webp"
 )
 
 type OGTwitterCheck struct{}
@@ -17,19 +24,40 @@ func (c OGTwitterCheck) Title() string {
 	return "OG & Twitter cards configured"
 }
 
+// Recommended dimensions for social images
+const (
+	ogRecommendedWidth  = 1200
+	ogRecommendedHeight = 630
+	ogMinWidth          = 200
+	ogMinHeight         = 200
+
+	twitterRecommendedWidth  = 1200
+	twitterRecommendedHeight = 600
+	twitterMinWidth          = 300
+	twitterMinHeight         = 157
+)
+
 func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 	cfg := ctx.Config.Checks.SEOMeta
-	if cfg == nil || cfg.MainLayout == "" {
+
+	// Get configured layout or auto-detect
+	var configuredLayout string
+	if cfg != nil {
+		configuredLayout = cfg.MainLayout
+	}
+	layoutFile := getLayoutFile(ctx.RootDir, ctx.Config.Stack, configuredLayout)
+
+	if layoutFile == "" {
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  "Check not configured (set checks.seoMeta.mainLayout)",
+			Message:  "No layout file found, skipping",
 		}, nil
 	}
 
-	layoutPath := filepath.Join(ctx.RootDir, cfg.MainLayout)
+	layoutPath := filepath.Join(ctx.RootDir, layoutFile)
 	content, err := os.ReadFile(layoutPath)
 	if err != nil {
 		return CheckResult{
@@ -37,11 +65,12 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 			Title:    c.Title(),
 			Severity: SeverityWarn,
 			Passed:   false,
-			Message:  "Could not read layout file: " + cfg.MainLayout,
+			Message:  "Could not read layout file: " + layoutFile,
 		}, nil
 	}
 
-	contentStr := string(content)
+	// Strip comments to avoid false positives on commented-out code
+	contentStr := stripComments(string(content))
 
 	// OG and Twitter card elements
 	checks := map[string]*regexp.Regexp{
@@ -55,29 +84,29 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 	// Alternate patterns for Next.js/React metadata API
 	alternates := map[string][]*regexp.Regexp{
 		"og:image": {
-			regexp.MustCompile(`(?i)openGraph.*images`),
 			regexp.MustCompile(`(?i)og:image`),
-			regexp.MustCompile(`(?i)opengraph-image\.(png|jpg|jpeg|svg)`),
+			regexp.MustCompile(`(?i)opengraph-image\.(png|jpg|jpeg|svg|webp)`),
 		},
 		"og:url": {
-			regexp.MustCompile(`(?i)openGraph.*url`),
 			regexp.MustCompile(`(?i)metadataBase`),
 		},
-		"og:type": {
-			regexp.MustCompile(`(?i)openGraph.*type`),
-		},
+		"og:type": {},
 		"twitter:card": {
-			regexp.MustCompile(`(?i)twitter.*card`),
-			regexp.MustCompile(`(?i)twitter-image\.(png|jpg|jpeg|svg)`),
+			regexp.MustCompile(`(?i)twitter-image\.(png|jpg|jpeg|svg|webp)`),
 		},
 		"twitter:image": {
-			regexp.MustCompile(`(?i)twitter.*images`),
-			regexp.MustCompile(`(?i)twitter-image\.(png|jpg|jpeg|svg)`),
+			regexp.MustCompile(`(?i)twitter-image\.(png|jpg|jpeg|svg|webp)`),
 		},
 	}
 
 	var missing []string
 	var found []string
+	var dimensionWarnings []string
+	var details []string
+
+	// Extract image URLs for dimension checking
+	ogImageURL := extractMetaContent(contentStr, `property=["']og:image["']`)
+	twitterImageURL := extractMetaContent(contentStr, `name=["']twitter:image["']`)
 
 	for name, pattern := range checks {
 		matched := pattern.MatchString(contentStr)
@@ -92,6 +121,11 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 					}
 				}
 			}
+		}
+
+		// Try Next.js Metadata API patterns (multi-line aware)
+		if !matched {
+			matched = hasNextJSOGTwitterMeta(contentStr, name)
 		}
 
 		if matched {
@@ -113,14 +147,17 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 		"public/twitter-image.png",
 	}
 
+	var localOGImagePath, localTwitterImagePath string
 	for _, imgPath := range ogImageFiles {
 		fullPath := filepath.Join(ctx.RootDir, imgPath)
 		if _, err := os.Stat(fullPath); err == nil {
 			if strings.Contains(imgPath, "opengraph") || strings.Contains(imgPath, "og") {
-				// Remove og:image from missing if found
 				missing = removeFromSlice(missing, "og:image")
 				if !contains(found, "og:image") {
 					found = append(found, "og:image (file)")
+				}
+				if localOGImagePath == "" {
+					localOGImagePath = fullPath
 				}
 			}
 			if strings.Contains(imgPath, "twitter") {
@@ -128,38 +165,315 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 				if !contains(found, "twitter:image") {
 					found = append(found, "twitter:image (file)")
 				}
+				if localTwitterImagePath == "" {
+					localTwitterImagePath = fullPath
+				}
 			}
 		}
 	}
 
-	if len(missing) == 0 {
+	// Check dimensions of images
+	baseURL := ""
+	if ctx.Config.URLs.Staging != "" {
+		baseURL = ctx.Config.URLs.Staging
+	} else if ctx.Config.URLs.Production != "" {
+		baseURL = ctx.Config.URLs.Production
+	}
+
+	// Check OG image dimensions
+	if ogImageURL != "" && ctx.Client != nil {
+		fullURL := resolveImageURL(ogImageURL, baseURL)
+		if fullURL != "" {
+			width, height, err := fetchImageDimensions(ctx, fullURL)
+			if err == nil {
+				details = append(details, fmt.Sprintf("og:image dimensions: %dx%d", width, height))
+				if width < ogMinWidth || height < ogMinHeight {
+					dimensionWarnings = append(dimensionWarnings,
+						fmt.Sprintf("og:image too small (%dx%d, min %dx%d)", width, height, ogMinWidth, ogMinHeight))
+				} else if width < ogRecommendedWidth || height < ogRecommendedHeight {
+					dimensionWarnings = append(dimensionWarnings,
+						fmt.Sprintf("og:image below recommended (%dx%d, recommended %dx%d)", width, height, ogRecommendedWidth, ogRecommendedHeight))
+				}
+			} else if ctx.Verbose {
+				details = append(details, fmt.Sprintf("og:image fetch error: %v", err))
+			}
+		}
+	} else if localOGImagePath != "" {
+		width, height, err := getLocalImageDimensions(localOGImagePath)
+		if err == nil {
+			details = append(details, fmt.Sprintf("og:image dimensions: %dx%d", width, height))
+			if width < ogMinWidth || height < ogMinHeight {
+				dimensionWarnings = append(dimensionWarnings,
+					fmt.Sprintf("og:image too small (%dx%d, min %dx%d)", width, height, ogMinWidth, ogMinHeight))
+			} else if width < ogRecommendedWidth || height < ogRecommendedHeight {
+				dimensionWarnings = append(dimensionWarnings,
+					fmt.Sprintf("og:image below recommended (%dx%d, recommended %dx%d)", width, height, ogRecommendedWidth, ogRecommendedHeight))
+			}
+		}
+	}
+
+	// Check Twitter image dimensions
+	if twitterImageURL != "" && ctx.Client != nil {
+		fullURL := resolveImageURL(twitterImageURL, baseURL)
+		if fullURL != "" {
+			width, height, err := fetchImageDimensions(ctx, fullURL)
+			if err == nil {
+				details = append(details, fmt.Sprintf("twitter:image dimensions: %dx%d", width, height))
+				if width < twitterMinWidth || height < twitterMinHeight {
+					dimensionWarnings = append(dimensionWarnings,
+						fmt.Sprintf("twitter:image too small (%dx%d, min %dx%d)", width, height, twitterMinWidth, twitterMinHeight))
+				} else if width < twitterRecommendedWidth || height < twitterRecommendedHeight {
+					dimensionWarnings = append(dimensionWarnings,
+						fmt.Sprintf("twitter:image below recommended (%dx%d, recommended %dx%d)", width, height, twitterRecommendedWidth, twitterRecommendedHeight))
+				}
+			} else if ctx.Verbose {
+				details = append(details, fmt.Sprintf("twitter:image fetch error: %v", err))
+			}
+		}
+	} else if localTwitterImagePath != "" {
+		width, height, err := getLocalImageDimensions(localTwitterImagePath)
+		if err == nil {
+			details = append(details, fmt.Sprintf("twitter:image dimensions: %dx%d", width, height))
+			if width < twitterMinWidth || height < twitterMinHeight {
+				dimensionWarnings = append(dimensionWarnings,
+					fmt.Sprintf("twitter:image too small (%dx%d, min %dx%d)", width, height, twitterMinWidth, twitterMinHeight))
+			} else if width < twitterRecommendedWidth || height < twitterRecommendedHeight {
+				dimensionWarnings = append(dimensionWarnings,
+					fmt.Sprintf("twitter:image below recommended (%dx%d, recommended %dx%d)", width, height, twitterRecommendedWidth, twitterRecommendedHeight))
+			}
+		}
+	}
+
+	// Build result
+	if len(missing) == 0 && len(dimensionWarnings) == 0 {
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
 			Message:  "OG and Twitter card metadata configured",
+			Details:  details,
 		}, nil
 	}
 
-	// Warn if missing image tags specifically
+	var messages []string
+	if len(missing) > 0 {
+		messages = append(messages, "Missing: "+strings.Join(missing, ", "))
+	}
+	if len(dimensionWarnings) > 0 {
+		messages = append(messages, dimensionWarnings...)
+	}
+
 	severity := SeverityWarn
-	if len(missing) <= 2 && !contains(missing, "og:image") {
-		severity = SeverityWarn
+	suggestions := []string{}
+	if len(missing) > 0 && contains(missing, "og:image") {
+		suggestions = append(suggestions, "Add og:image for rich social media previews")
+	}
+	if len(missing) > 0 && contains(missing, "twitter:card") {
+		suggestions = append(suggestions, "Add twitter:card for Twitter/X previews")
+	}
+	if len(dimensionWarnings) > 0 {
+		suggestions = append(suggestions, fmt.Sprintf("Use %dx%d for OG images, %dx%d for Twitter", ogRecommendedWidth, ogRecommendedHeight, twitterRecommendedWidth, twitterRecommendedHeight))
 	}
 
 	return CheckResult{
-		ID:       c.ID(),
-		Title:    c.Title(),
-		Severity: severity,
-		Passed:   false,
-		Message:  "Missing: " + strings.Join(missing, ", "),
-		Suggestions: []string{
-			"Add og:image for rich social media previews",
-			"Add twitter:card for Twitter/X previews",
-			"Consider using 1200x630px images for best results",
-		},
+		ID:          c.ID(),
+		Title:       c.Title(),
+		Severity:    severity,
+		Passed:      false,
+		Message:     strings.Join(messages, "; "),
+		Suggestions: suggestions,
+		Details:     details,
 	}, nil
+}
+
+// hasNextJSOGTwitterMeta checks for Next.js Metadata API OG/Twitter patterns
+func hasNextJSOGTwitterMeta(content, name string) bool {
+	// Check if this looks like a Next.js metadata export
+	metadataExport := regexp.MustCompile(`(?s)export\s+(const|let|var)\s+metadata\s*[=:]`)
+	if !metadataExport.MatchString(content) {
+		return false
+	}
+
+	// Extract the metadata object
+	metadataBlock := regexp.MustCompile(`(?s)export\s+(?:const|let|var)\s+metadata[^=]*=\s*\{`)
+	loc := metadataBlock.FindStringIndex(content)
+	if loc == nil {
+		return false
+	}
+
+	// Find the matching closing brace for the metadata object
+	metadataContent := extractBraceBlock(content, loc[1]-1)
+	if metadataContent == "" {
+		return false
+	}
+
+	switch name {
+	case "og:image":
+		ogBlock := extractNestedBlockOG(metadataContent, "openGraph")
+		if ogBlock != "" {
+			// Check for images array or image property
+			imagesPattern := regexp.MustCompile(`(?m)images\s*:\s*\[`)
+			imagePattern := regexp.MustCompile(`(?m)image\s*:\s*["'\x60]`)
+			return imagesPattern.MatchString(ogBlock) || imagePattern.MatchString(ogBlock)
+		}
+		return false
+
+	case "og:url":
+		// metadataBase or openGraph.url
+		if regexp.MustCompile(`(?m)metadataBase\s*:`).MatchString(metadataContent) {
+			return true
+		}
+		ogBlock := extractNestedBlockOG(metadataContent, "openGraph")
+		if ogBlock != "" {
+			urlPattern := regexp.MustCompile(`(?m)url\s*:\s*["'\x60]`)
+			return urlPattern.MatchString(ogBlock)
+		}
+		return false
+
+	case "og:type":
+		ogBlock := extractNestedBlockOG(metadataContent, "openGraph")
+		if ogBlock != "" {
+			typePattern := regexp.MustCompile(`(?m)type\s*:\s*["'\x60]`)
+			return typePattern.MatchString(ogBlock)
+		}
+		return false
+
+	case "twitter:card":
+		twitterBlock := extractNestedBlockOG(metadataContent, "twitter")
+		if twitterBlock != "" {
+			cardPattern := regexp.MustCompile(`(?m)card\s*:\s*["'\x60]`)
+			return cardPattern.MatchString(twitterBlock)
+		}
+		return false
+
+	case "twitter:image":
+		twitterBlock := extractNestedBlockOG(metadataContent, "twitter")
+		if twitterBlock != "" {
+			imagesPattern := regexp.MustCompile(`(?m)images\s*:\s*\[`)
+			imagePattern := regexp.MustCompile(`(?m)image\s*:\s*["'\x60]`)
+			return imagesPattern.MatchString(twitterBlock) || imagePattern.MatchString(twitterBlock)
+		}
+		return false
+	}
+
+	return false
+}
+
+// extractBraceBlock extracts content between matching braces starting at pos
+func extractBraceBlock(content string, pos int) string {
+	if pos >= len(content) || content[pos] != '{' {
+		return ""
+	}
+	depth := 0
+	for i := pos; i < len(content); i++ {
+		if content[i] == '{' {
+			depth++
+		} else if content[i] == '}' {
+			depth--
+			if depth == 0 {
+				return content[pos : i+1]
+			}
+		}
+	}
+	return ""
+}
+
+// extractNestedBlockOG extracts a nested object block like openGraph: { ... }
+func extractNestedBlockOG(content, key string) string {
+	pattern := regexp.MustCompile(`(?s)` + key + `\s*:\s*\{`)
+	loc := pattern.FindStringIndex(content)
+	if loc == nil {
+		return ""
+	}
+	return extractBraceBlock(content, loc[1]-1)
+}
+
+// extractMetaContent extracts the content attribute from a meta tag matching the given pattern
+func extractMetaContent(html, attrPattern string) string {
+	// Match the full meta tag
+	tagPattern := regexp.MustCompile(`(?i)<meta[^>]+` + attrPattern + `[^>]*>`)
+	tag := tagPattern.FindString(html)
+	if tag == "" {
+		return ""
+	}
+
+	// Extract content attribute
+	contentPattern := regexp.MustCompile(`(?i)content=["']([^"']+)["']`)
+	matches := contentPattern.FindStringSubmatch(tag)
+	if len(matches) < 2 {
+		return ""
+	}
+	return matches[1]
+}
+
+// resolveImageURL resolves a potentially relative image URL to an absolute URL
+func resolveImageURL(imageURL, baseURL string) string {
+	if imageURL == "" {
+		return ""
+	}
+
+	// Already absolute
+	if strings.HasPrefix(imageURL, "http://") || strings.HasPrefix(imageURL, "https://") {
+		return imageURL
+	}
+
+	// Relative URL - need base URL
+	if baseURL == "" {
+		return ""
+	}
+
+	// Ensure base URL has protocol
+	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		baseURL = "https://" + baseURL
+	}
+
+	// Remove trailing slash from base
+	baseURL = strings.TrimSuffix(baseURL, "/")
+
+	// Handle absolute path
+	if strings.HasPrefix(imageURL, "/") {
+		return baseURL + imageURL
+	}
+
+	// Handle relative path
+	return baseURL + "/" + imageURL
+}
+
+// fetchImageDimensions fetches an image from a URL and returns its dimensions
+func fetchImageDimensions(ctx Context, url string) (width, height int, err error) {
+	resp, err := doGet(ctx.Client, url)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return 0, 0, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	img, _, err := image.DecodeConfig(resp.Body)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return img.Width, img.Height, nil
+}
+
+// getLocalImageDimensions reads a local image file and returns its dimensions
+func getLocalImageDimensions(path string) (width, height int, err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer f.Close()
+
+	img, _, err := image.DecodeConfig(f)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return img.Width, img.Height, nil
 }
 
 func removeFromSlice(slice []string, item string) []string {

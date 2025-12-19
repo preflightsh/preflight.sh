@@ -142,7 +142,7 @@ func (c RedisCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
-	// Check for Redis configuration in common locations
+	// Check for Redis configuration patterns
 	configPatterns := []*regexp.Regexp{
 		regexp.MustCompile(`redis://`),
 		regexp.MustCompile(`Redis\.new`),
@@ -152,61 +152,42 @@ func (c RedisCheck) Run(ctx Context) (CheckResult, error) {
 		regexp.MustCompile(`ioredis`),
 		regexp.MustCompile(`@upstash/redis`),
 		regexp.MustCompile(`Upstash`),
+		// Vercel KV (powered by Upstash Redis)
+		regexp.MustCompile(`@vercel/kv`),
+		regexp.MustCompile(`from\s+['"]@vercel/kv['"]`),
+		regexp.MustCompile(`kv\.(get|set|del|hget|hset|incr|expire)`),
 	}
 
+	// First, do a codebase-wide search for Redis patterns
+	if match := searchForPatterns(ctx.RootDir, ctx.Config.Stack, configPatterns); match {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "Redis configuration found",
+		}, nil
+	}
+
+	// Also check specific config files for traditional setups
 	configFiles := []string{
 		"config/redis.yml",
 		"config/cable.yml",
 		"config/sidekiq.yml",
 		"config/initializers/redis.rb",
 		"config/initializers/sidekiq.rb",
-		"src/config/redis.ts",
-		"src/lib/redis.ts",
-		"src/redis.ts",
-		"lib/redis.js",
-		"lib/redis.ts",
-	}
-
-	// Also check monorepo structures
-	monorepoRoots := []string{"apps", "packages", "services"}
-	for _, monoRoot := range monorepoRoots {
-		monoDir := filepath.Join(ctx.RootDir, monoRoot)
-		entries, err := os.ReadDir(monoDir)
-		if err != nil {
-			continue
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			// Add monorepo paths
-			configFiles = append(configFiles,
-				filepath.Join(monoRoot, entry.Name(), "src", "redis.ts"),
-				filepath.Join(monoRoot, entry.Name(), "src", "lib", "redis.ts"),
-				filepath.Join(monoRoot, entry.Name(), "src", "config", "redis.ts"),
-				filepath.Join(monoRoot, entry.Name(), "lib", "redis.ts"),
-				filepath.Join(monoRoot, entry.Name(), "lib", "redis.js"),
-			)
-		}
 	}
 
 	for _, file := range configFiles {
 		path := filepath.Join(ctx.RootDir, file)
-		content, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-
-		for _, pattern := range configPatterns {
-			if pattern.Match(content) {
-				return CheckResult{
-					ID:       c.ID(),
-					Title:    c.Title(),
-					Severity: SeverityInfo,
-					Passed:   true,
-					Message:  "Redis configuration found",
-				}, nil
-			}
+		if _, err := os.Stat(path); err == nil {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "Redis configuration found",
+			}, nil
 		}
 	}
 
@@ -422,8 +403,11 @@ func searchForPatternsWithDetails(rootDir, stack string, patterns []*regexp.Rege
 			continue
 		}
 
+		// Strip comments to avoid false positives on commented-out code
+		contentStr := stripCommentsForSearch(string(content))
+
 		for _, pattern := range patterns {
-			if pattern.Match(content) {
+			if pattern.MatchString(contentStr) {
 				relPath, _ := filepath.Rel(rootDir, path)
 				return &SearchMatch{
 					FilePath: relPath,
@@ -525,8 +509,11 @@ func searchForPatternsWithDetails(rootDir, stack string, patterns []*regexp.Rege
 				return nil
 			}
 
+			// Strip comments to avoid false positives on commented-out code
+			contentStr := stripCommentsForSearch(string(content))
+
 			for _, pattern := range patterns {
-				if pattern.Match(content) {
+				if pattern.MatchString(contentStr) {
 					relPath, _ := filepath.Rel(rootDir, path)
 					result = &SearchMatch{
 						FilePath: relPath,
@@ -596,4 +583,29 @@ func getLayoutFilesForStack(stack string) []string {
 		return files
 	}
 	return []string{"index.html", "public/index.html"}
+}
+
+// stripCommentsForSearch removes comments from code to avoid false positives
+func stripCommentsForSearch(content string) string {
+	// Remove single-line comments (// ...)
+	singleLine := regexp.MustCompile(`//[^\n]*`)
+	content = singleLine.ReplaceAllString(content, "")
+
+	// Remove multi-line comments (/* ... */) including JSX comments ({/* ... */})
+	multiLine := regexp.MustCompile(`(?s)/\*.*?\*/`)
+	content = multiLine.ReplaceAllString(content, "")
+
+	// Remove HTML comments (<!-- ... -->)
+	htmlComments := regexp.MustCompile(`(?s)<!--.*?-->`)
+	content = htmlComments.ReplaceAllString(content, "")
+
+	// Remove Twig/Jinja comments ({# ... #})
+	twigComments := regexp.MustCompile(`(?s)\{#.*?#\}`)
+	content = twigComments.ReplaceAllString(content, "")
+
+	// Remove ERB comments (<%# ... %>)
+	erbComments := regexp.MustCompile(`(?s)<%#.*?%>`)
+	content = erbComments.ReplaceAllString(content, "")
+
+	return content
 }

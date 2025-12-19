@@ -75,7 +75,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build list of enabled checks
-	enabledChecks := buildEnabledChecks(cfg)
+	enabledChecks := buildEnabledChecks(cfg, projectDir)
 
 	// Filter out ignored checks
 	if len(cfg.Ignore) > 0 {
@@ -128,7 +128,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
+func buildEnabledChecks(cfg *config.PreflightConfig, rootDir string) []checks.Check {
 	var enabledChecks []checks.Check
 
 	// Build ignore map for quick lookup (includes both check IDs and service IDs)
@@ -143,18 +143,19 @@ func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 	}
 
 	// === SEO & Social ===
-	if cfg.Checks.SEOMeta != nil && cfg.Checks.SEOMeta.Enabled {
+	// Auto-enable SEO checks if layout can be detected or explicitly configured
+	seoEnabled := (cfg.Checks.SEOMeta != nil && cfg.Checks.SEOMeta.Enabled) ||
+		canAutoDetectLayout(rootDir, cfg.Stack)
+	if seoEnabled {
 		enabledChecks = append(enabledChecks, checks.SEOMetadataCheck{})
 		enabledChecks = append(enabledChecks, checks.CanonicalURLCheck{})
+		enabledChecks = append(enabledChecks, checks.OGTwitterCheck{})
+		enabledChecks = append(enabledChecks, checks.ViewportCheck{})
+		enabledChecks = append(enabledChecks, checks.LangAttributeCheck{})
 	}
 	enabledChecks = append(enabledChecks, checks.StructuredDataCheck{})
 	if cfg.Checks.IndexNow != nil && cfg.Checks.IndexNow.Enabled {
 		enabledChecks = append(enabledChecks, checks.IndexNowCheck{})
-	}
-	if cfg.Checks.SEOMeta != nil && cfg.Checks.SEOMeta.Enabled {
-		enabledChecks = append(enabledChecks, checks.OGTwitterCheck{})
-		enabledChecks = append(enabledChecks, checks.ViewportCheck{})
-		enabledChecks = append(enabledChecks, checks.LangAttributeCheck{})
 	}
 
 	// === Security & Infrastructure ===
@@ -471,4 +472,63 @@ func determineExitCode(results []checks.CheckResult) int {
 		return 1
 	}
 	return 0
+}
+
+// canAutoDetectLayout checks if a layout file can be auto-detected for SEO checks
+func canAutoDetectLayout(rootDir, stack string) bool {
+	// Common layout files by stack
+	layoutsByStack := map[string][]string{
+		"next": {
+			"app/layout.tsx", "app/layout.js", "app/layout.jsx",
+			"src/app/layout.tsx", "src/app/layout.js", "src/app/layout.jsx",
+			"pages/_app.tsx", "pages/_app.js", "pages/_document.tsx", "pages/_document.js",
+		},
+		"react": {"index.html", "public/index.html", "src/index.html"},
+		"vite":  {"index.html", "src/index.html"},
+		"vue":   {"index.html", "public/index.html", "src/App.vue"},
+		"svelte": {"src/app.html", "index.html"},
+		"angular": {"src/index.html"},
+		"rails": {
+			"app/views/layouts/application.html.erb",
+			"app/views/layouts/base.html.erb",
+		},
+		"laravel": {
+			"resources/views/layouts/app.blade.php",
+			"resources/views/layouts/main.blade.php",
+		},
+		"django": {"templates/base.html", "templates/layout.html"},
+		"craft": {
+			"templates/_layout.twig",
+			"templates/_layouts/main.twig",
+			"templates/_layouts/base.twig",
+		},
+		"hugo":     {"layouts/_default/baseof.html"},
+		"jekyll":   {"_layouts/default.html", "_layouts/base.html"},
+		"gatsby":   {"src/components/layout.js", "src/components/Layout.js"},
+		"astro":    {"src/layouts/Layout.astro", "src/layouts/Base.astro"},
+		"eleventy": {"_includes/base.njk", "_includes/layout.njk"},
+	}
+
+	// Check stack-specific layouts
+	if layouts, ok := layoutsByStack[stack]; ok {
+		for _, layout := range layouts {
+			if _, err := os.Stat(rootDir + "/" + layout); err == nil {
+				return true
+			}
+		}
+	}
+
+	// Fallback: try common layouts
+	commonLayouts := []string{
+		"app/layout.tsx", "app/layout.js",
+		"src/app/layout.tsx", "src/app/layout.js",
+		"index.html", "public/index.html",
+	}
+	for _, layout := range commonLayouts {
+		if _, err := os.Stat(rootDir + "/" + layout); err == nil {
+			return true
+		}
+	}
+
+	return false
 }
