@@ -1,6 +1,6 @@
 # Preflight.sh
 
-[Preflight.sh](https://preflight.sh/) is a command-line tool that scans your codebase for launch readiness. Identifies missing configuration, integration issues, security concerns, SEO metadata gaps, and other common mistakes before you deploy to production.
+[Preflight.sh](https://preflight.sh/) is a command-line tool that scans your codebase for launch readiness. Identifies missing configuration, integration issues, security concerns, SEO metadata gaps, and other common mistakes before you deploy to production. [View the changelog here.](https://changelog.preflight.sh/)
 
 Don’t embarrass yourself in production. Just run the command.
 
