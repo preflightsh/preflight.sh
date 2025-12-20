@@ -37,7 +37,13 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 			},
 		}
 
-		privacyURLs := []string{"/privacy", "/privacy-policy", "/legal/privacy"}
+		privacyURLs := []string{
+			"/privacy", "/privacy-policy", "/privacypolicy",
+			"/legal/privacy", "/legal/privacy-policy",
+			"/policies/privacy", "/policies/privacy-policy",
+			"/privacy-notice", "/privacy-statement",
+			"/info/privacy", "/about/privacy",
+		}
 		for _, path := range privacyURLs {
 			if hasPrivacy {
 				break
@@ -52,7 +58,13 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 			}
 		}
 
-		termsURLs := []string{"/terms", "/terms-of-service", "/tos", "/legal/terms"}
+		termsURLs := []string{
+			"/terms", "/terms-of-service", "/termsofservice", "/tos",
+			"/legal/terms", "/legal/terms-of-service", "/legal/tos",
+			"/policies/terms", "/policies/terms-of-service",
+			"/terms-and-conditions", "/terms-conditions",
+			"/info/terms", "/about/terms", "/eula",
+		}
 		for _, path := range termsURLs {
 			if hasTerms {
 				break
@@ -81,16 +93,24 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 
 	// Common privacy policy paths/filenames
 	privacyPatterns := []string{
-		"privacy", "privacy-policy", "privacy_policy",
+		"privacy", "privacy-policy", "privacy_policy", "privacypolicy",
 		"legal/privacy", "legal/privacy-policy",
 		"pages/privacy", "pages/privacy-policy",
+		"policies/privacy", "policies/privacy-policy",
+		"legalese/privacy", "legalese/privacy-policy",
+		"info/privacy", "about/privacy",
+		"privacy-notice", "privacy-statement",
 	}
 
 	// Common terms paths/filenames
 	termsPatterns := []string{
-		"terms", "terms-of-service", "terms_of_service", "tos",
-		"legal/terms", "legal/terms-of-service",
+		"terms", "terms-of-service", "terms_of_service", "tos", "termsofservice",
+		"legal/terms", "legal/terms-of-service", "legal/tos",
 		"pages/terms", "pages/terms-of-service",
+		"policies/terms", "policies/terms-of-service",
+		"legalese/terms", "legalese/terms-of-service",
+		"info/terms", "about/terms",
+		"terms-and-conditions", "terms-conditions", "eula",
 	}
 
 	// Extensions to check
@@ -176,6 +196,46 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 					}
 				}
 			}
+		}
+	}
+
+	// Flexible search: walk common source directories for any file containing "privacy" or "terms"
+	if !hasPrivacy || !hasTerms {
+		flexSearchDirs := []string{"app", "src", "pages", "views", "templates", "content"}
+		for _, dir := range flexSearchDirs {
+			if hasPrivacy && hasTerms {
+				break
+			}
+			dirPath := filepath.Join(ctx.RootDir, dir)
+			if _, err := os.Stat(dirPath); err != nil {
+				continue
+			}
+			filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+				if err != nil || hasPrivacy && hasTerms {
+					return nil
+				}
+				// Skip node_modules, vendor, etc.
+				if info.IsDir() {
+					name := info.Name()
+					if name == "node_modules" || name == "vendor" || name == ".git" || name == "dist" || name == "build" {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+				nameLower := strings.ToLower(info.Name())
+				relPath, _ := filepath.Rel(ctx.RootDir, path)
+				// Check for privacy-related files
+				if !hasPrivacy && strings.Contains(nameLower, "privacy") {
+					hasPrivacy = true
+					privacyPath = relPath
+				}
+				// Check for terms-related files (but not "terms" in random words)
+				if !hasTerms && (strings.Contains(nameLower, "terms") || nameLower == "tos.tsx" || nameLower == "tos.jsx" || nameLower == "tos.ts" || nameLower == "tos.js" || nameLower == "eula.tsx" || nameLower == "eula.jsx") {
+					hasTerms = true
+					termsPath = relPath
+				}
+				return nil
+			})
 		}
 	}
 
