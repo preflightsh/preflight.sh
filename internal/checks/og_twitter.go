@@ -72,6 +72,50 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 	// Strip comments to avoid false positives on commented-out code
 	contentStr := stripComments(string(content))
 
+	// For Next.js, check if metadata/generateMetadata exists anywhere in app
+	if strings.Contains(layoutFile, "app/") {
+		hasMetadataInApp := false
+		appDir := filepath.Dir(filepath.Join(ctx.RootDir, layoutFile))
+		generateMetadataPattern := regexp.MustCompile(`(?s)export\s+(async\s+)?function\s+generateMetadata`)
+		metadataExportPattern := regexp.MustCompile(`(?s)export\s+(const|let|var)\s+metadata\s*[=:]`)
+
+		filepath.Walk(appDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || hasMetadataInApp {
+				return nil
+			}
+			if info.IsDir() {
+				name := info.Name()
+				if name == "node_modules" || name == ".git" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			nameLower := strings.ToLower(info.Name())
+			if !strings.HasSuffix(nameLower, ".tsx") && !strings.HasSuffix(nameLower, ".ts") &&
+				!strings.HasSuffix(nameLower, ".jsx") && !strings.HasSuffix(nameLower, ".js") {
+				return nil
+			}
+			fileContent, err := os.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+			if generateMetadataPattern.Match(fileContent) || metadataExportPattern.Match(fileContent) {
+				hasMetadataInApp = true
+			}
+			return nil
+		})
+
+		if hasMetadataInApp {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "OG and Twitter metadata configured via Next.js Metadata API",
+			}, nil
+		}
+	}
+
 	// OG and Twitter card elements
 	checks := map[string]*regexp.Regexp{
 		"og:image":      regexp.MustCompile(`(?i)<meta[^>]+property=["']og:image["'][^>]*>`),
@@ -144,6 +188,8 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 		"public/og-image.png",
 		"public/og-image.jpg",
 		"public/og.png",
+		"public/opengraph.png",
+		"public/opengraph-image.png",
 		"public/twitter-image.png",
 	}
 
@@ -170,6 +216,57 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 				}
 			}
 		}
+	}
+
+	// Flexible search: walk app directories for dynamic image generation files
+	flexImageDirs := []string{"app", "src/app"}
+	for _, dir := range flexImageDirs {
+		dirPath := filepath.Join(ctx.RootDir, dir)
+		if _, err := os.Stat(dirPath); err != nil {
+			continue
+		}
+		filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() {
+				name := info.Name()
+				if name == "node_modules" || name == ".git" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			nameLower := strings.ToLower(info.Name())
+			relPath, _ := filepath.Rel(ctx.RootDir, path)
+
+			// Check for opengraph-image files (static or dynamic)
+			if strings.HasPrefix(nameLower, "opengraph-image.") {
+				missing = removeFromSlice(missing, "og:image")
+				if !contains(found, "og:image") && !contains(found, "og:image (file)") {
+					found = append(found, "og:image ("+relPath+")")
+				}
+				if localOGImagePath == "" && (strings.HasSuffix(nameLower, ".png") || strings.HasSuffix(nameLower, ".jpg") || strings.HasSuffix(nameLower, ".jpeg")) {
+					localOGImagePath = path
+				}
+			}
+
+			// Check for twitter-image files (static or dynamic)
+			if strings.HasPrefix(nameLower, "twitter-image.") {
+				missing = removeFromSlice(missing, "twitter:image")
+				missing = removeFromSlice(missing, "twitter:card") // twitter-image implies twitter:card
+				if !contains(found, "twitter:image") && !contains(found, "twitter:image (file)") {
+					found = append(found, "twitter:image ("+relPath+")")
+				}
+				if !contains(found, "twitter:card") {
+					found = append(found, "twitter:card")
+				}
+				if localTwitterImagePath == "" && (strings.HasSuffix(nameLower, ".png") || strings.HasSuffix(nameLower, ".jpg") || strings.HasSuffix(nameLower, ".jpeg")) {
+					localTwitterImagePath = path
+				}
+			}
+
+			return nil
+		})
 	}
 
 	// Check dimensions of images
@@ -289,8 +386,15 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 
 // hasNextJSOGTwitterMeta checks for Next.js Metadata API OG/Twitter patterns
 func hasNextJSOGTwitterMeta(content, name string) bool {
-	// Check if this looks like a Next.js metadata export
+	// Check if this looks like a Next.js metadata export or generateMetadata function
 	metadataExport := regexp.MustCompile(`(?s)export\s+(const|let|var)\s+metadata\s*[=:]`)
+	generateMetadata := regexp.MustCompile(`(?s)export\s+(async\s+)?function\s+generateMetadata`)
+
+	// If using generateMetadata, assume all metadata is handled dynamically
+	if generateMetadata.MatchString(content) {
+		return true
+	}
+
 	if !metadataExport.MatchString(content) {
 		return false
 	}

@@ -45,7 +45,7 @@ func (c SEOMetadataCheck) Run(ctx Context) (CheckResult, error) {
 			Title:    c.Title(),
 			Severity: SeverityWarn,
 			Passed:   false,
-			Message:  "Could not read layout file: " + cfg.MainLayout,
+			Message:  "Could not read layout file: " + layoutFile,
 			Suggestions: []string{
 				"Check that the mainLayout path is correct in preflight.yml",
 			},
@@ -54,6 +54,53 @@ func (c SEOMetadataCheck) Run(ctx Context) (CheckResult, error) {
 
 	// Strip comments to avoid false positives on commented-out code
 	contentStr := stripComments(string(content))
+
+	// For Next.js, also check page files for metadata/generateMetadata
+	if strings.Contains(layoutFile, "app/") {
+		hasMetadataInApp := false
+		appDir := filepath.Dir(filepath.Join(ctx.RootDir, layoutFile))
+		// Check if layout has generateMetadata or metadata export
+		generateMetadataPattern := regexp.MustCompile(`(?s)export\s+(async\s+)?function\s+generateMetadata`)
+		metadataExportPattern := regexp.MustCompile(`(?s)export\s+(const|let|var)\s+metadata\s*[=:]`)
+
+		filepath.Walk(appDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || hasMetadataInApp {
+				return nil
+			}
+			if info.IsDir() {
+				name := info.Name()
+				if name == "node_modules" || name == ".git" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			// Only check tsx/ts/jsx/js files
+			nameLower := strings.ToLower(info.Name())
+			if !strings.HasSuffix(nameLower, ".tsx") && !strings.HasSuffix(nameLower, ".ts") &&
+				!strings.HasSuffix(nameLower, ".jsx") && !strings.HasSuffix(nameLower, ".js") {
+				return nil
+			}
+			fileContent, err := os.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+			if generateMetadataPattern.Match(fileContent) || metadataExportPattern.Match(fileContent) {
+				hasMetadataInApp = true
+			}
+			return nil
+		})
+
+		if hasMetadataInApp {
+			// Metadata is handled somewhere in the app, pass all checks
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "SEO metadata configured via Next.js Metadata API",
+			}, nil
+		}
+	}
 
 	// Required SEO elements
 	checks := map[string]*regexp.Regexp{
@@ -238,8 +285,15 @@ func checkAlternatePatterns(content, name string) bool {
 
 // hasNextJSMetadata checks for Next.js App Router Metadata API patterns
 func hasNextJSMetadata(content, name string) bool {
-	// Check if this looks like a Next.js metadata export
+	// Check if this looks like a Next.js metadata export or generateMetadata function
 	metadataExport := regexp.MustCompile(`(?s)export\s+(const|let|var)\s+metadata\s*[=:]`)
+	generateMetadata := regexp.MustCompile(`(?s)export\s+(async\s+)?function\s+generateMetadata`)
+
+	// If using generateMetadata, assume all metadata is handled dynamically
+	if generateMetadata.MatchString(content) {
+		return true
+	}
+
 	if !metadataExport.MatchString(content) {
 		return false
 	}
