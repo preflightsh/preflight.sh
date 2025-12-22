@@ -129,7 +129,7 @@ func DetectStack(rootDir string) string {
 	}
 
 	// Check for basic PHP site (before Node.js, since PHP sites often use Node for build tools)
-	if fileExists(rootDir, "public/index.php") || fileExists(rootDir, "index.php") {
+	if fileExists(rootDir, "public/index.php") || fileExists(rootDir, "index.php") || fileExists(rootDir, "web/index.php") {
 		// Not a known PHP framework, just a plain PHP site
 		return "php"
 	}
@@ -160,6 +160,21 @@ func DetectStack(rootDir string) string {
 			if strings.Contains(content, "\"@angular/core\"") {
 				return "angular"
 			}
+
+			// Check if it's a static site with build tools (e.g., Tailwind)
+			if hasHTMLFiles(rootDir) && isStaticSiteWithBuildTools(content) {
+				return "static"
+			}
+
+			// Only return "node" if there are actual Node.js app indicators
+			if isNodeApp(rootDir, content) {
+				return "node"
+			}
+		}
+
+		// If package.json exists but no Node.js app indicators, check for static site
+		if hasHTMLFiles(rootDir) {
+			return "static"
 		}
 
 		return "node"
@@ -804,7 +819,7 @@ func detectAnalyticsScripts(rootDir string, services map[string]bool) {
 		// Analytics - look for script URLs or specific SDK patterns
 		"plausible":        regexp.MustCompile(`(?i)plausible\.io/js/|plausible\.io/api`),
 		"fathom":           regexp.MustCompile(`(?i)cdn\.usefathom\.com|script\.src.*fathom`),
-		"fullres":          regexp.MustCompile(`(?i)window\.fullres|var fullres|fullres\.events`),
+		"fullres":          regexp.MustCompile(`(?i)window\.fullres|var fullres|fullres\.events|fullres\.src|fullres\.async`),
 		"datafast":         regexp.MustCompile(`(?i)datafa\.st/js/`),
 		"google_analytics": regexp.MustCompile(`(?i)googletagmanager\.com|google-analytics\.com/|gtag\(['"]|monsterinsights`),
 		"posthog":          regexp.MustCompile(`(?i)posthog\.com|us\.i\.posthog\.com|eu\.i\.posthog\.com|posthog\.init`),
@@ -1107,6 +1122,252 @@ func fileExists(rootDir, relativePath string) bool {
 	path := filepath.Join(rootDir, relativePath)
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// hasHTMLFiles checks if the project root or common web directories contain HTML files
+func hasHTMLFiles(rootDir string) bool {
+	// Check root directory
+	if fileExists(rootDir, "index.html") {
+		return true
+	}
+	// Check common static site directories
+	staticDirs := []string{"public", "dist", "build", "www", "static", "_site", "out"}
+	for _, dir := range staticDirs {
+		if fileExists(rootDir, filepath.Join(dir, "index.html")) {
+			return true
+		}
+	}
+	return false
+}
+
+// isStaticSiteWithBuildTools checks if package.json only contains build/dev tools
+// like Tailwind, PostCSS, etc. without any runtime Node.js dependencies
+func isStaticSiteWithBuildTools(packageJSON string) bool {
+	// Build tools that don't indicate a Node.js app
+	buildTools := []string{
+		"tailwindcss",
+		"postcss",
+		"autoprefixer",
+		"sass",
+		"less",
+		"stylus",
+		"cssnano",
+		"purgecss",
+		"@tailwindcss/",
+		"prettier",
+		"eslint",
+		"stylelint",
+		"webpack",
+		"parcel",
+		"rollup",
+		"esbuild",
+		"terser",
+		"uglify",
+		"babel",
+		"typescript",
+		"live-server",
+		"browser-sync",
+		"http-server",
+		"serve",
+		"concurrently",
+		"npm-run-all",
+		"cross-env",
+		"dotenv",
+		"husky",
+		"lint-staged",
+	}
+
+	// Node.js app indicators that would disqualify as static
+	appIndicators := []string{
+		"express",
+		"koa",
+		"fastify",
+		"hapi",
+		"@hapi/hapi",
+		"nest",
+		"@nestjs/",
+		"restify",
+		"polka",
+		"micro",
+		"moleculer",
+		"feathers",
+		"@feathersjs/",
+		"loopback",
+		"adonis",
+		"@adonisjs/",
+		"sails",
+		"meteor",
+		"socket.io",
+		"ws\"",
+		"graphql",
+		"apollo-server",
+		"prisma",
+		"sequelize",
+		"typeorm",
+		"mongoose",
+		"mongodb",
+		"pg\"",
+		"mysql",
+		"redis\"",
+		"ioredis",
+		"bull",
+		"agenda",
+		"node-cron",
+		"puppeteer",
+		"playwright",
+		"electron",
+		"\"react\"",
+		"\"vue\"",
+		"\"svelte\"",
+		"\"@angular/core\"",
+		"\"next\"",
+		"nuxt",
+		"gatsby",
+		"remix",
+		"@remix-run",
+		"solid-js",
+		"qwik",
+		"preact",
+	}
+
+	content := strings.ToLower(packageJSON)
+
+	// If any app indicators are present, it's not a static site with build tools
+	for _, indicator := range appIndicators {
+		if strings.Contains(content, strings.ToLower(indicator)) {
+			return false
+		}
+	}
+
+	// Check if at least one build tool is present
+	for _, tool := range buildTools {
+		if strings.Contains(content, strings.ToLower(tool)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isNodeApp checks for indicators that this is actually a Node.js application
+func isNodeApp(rootDir string, packageJSON string) bool {
+	// Check for common Node.js entry point files
+	entryPoints := []string{
+		"server.js",
+		"server.ts",
+		"app.js",
+		"app.ts",
+		"index.js",
+		"index.ts",
+		"main.js",
+		"main.ts",
+		"src/index.js",
+		"src/index.ts",
+		"src/server.js",
+		"src/server.ts",
+		"src/app.js",
+		"src/app.ts",
+	}
+
+	for _, entry := range entryPoints {
+		if fileExists(rootDir, entry) {
+			// index.js/ts alone isn't enough - could be a build tool config
+			// Check if it looks like an app entry point
+			if entry == "index.js" || entry == "index.ts" {
+				content, err := os.ReadFile(filepath.Join(rootDir, entry))
+				if err == nil {
+					contentStr := string(content)
+					// Look for server/app patterns
+					if strings.Contains(contentStr, "listen(") ||
+						strings.Contains(contentStr, "createServer") ||
+						strings.Contains(contentStr, "express()") ||
+						strings.Contains(contentStr, "new Koa") ||
+						strings.Contains(contentStr, "fastify(") {
+						return true
+					}
+				}
+				continue
+			}
+			return true
+		}
+	}
+
+	content := strings.ToLower(packageJSON)
+
+	// Check for Node.js server frameworks in dependencies
+	serverFrameworks := []string{
+		"\"express\"",
+		"\"koa\"",
+		"\"fastify\"",
+		"\"hapi\"",
+		"\"@hapi/hapi\"",
+		"\"@nestjs/core\"",
+		"\"restify\"",
+		"\"polka\"",
+		"\"micro\"",
+		"\"moleculer\"",
+		"\"@feathersjs/feathers\"",
+		"\"loopback\"",
+		"\"@adonisjs/core\"",
+		"\"sails\"",
+		"\"socket.io\"",
+	}
+
+	for _, framework := range serverFrameworks {
+		if strings.Contains(content, framework) {
+			return true
+		}
+	}
+
+	// Check for "start" script that runs node
+	// Look for patterns like "node ", "ts-node", "nodemon"
+	startPatterns := []string{
+		"\"start\":",
+		"\"dev\":",
+		"\"serve\":",
+	}
+
+	nodeRunPatterns := []string{
+		"node ",
+		"ts-node",
+		"nodemon",
+		"tsx ",
+		"npx ts-node",
+	}
+
+	for _, startPat := range startPatterns {
+		if idx := strings.Index(content, startPat); idx != -1 {
+			// Get the script value (next ~100 chars should be enough)
+			end := idx + 150
+			if end > len(content) {
+				end = len(content)
+			}
+			scriptSection := content[idx:end]
+			for _, runPat := range nodeRunPatterns {
+				if strings.Contains(scriptSection, runPat) {
+					return true
+				}
+			}
+		}
+	}
+
+	// Check for "main" field pointing to a JS file (not just types)
+	if strings.Contains(content, "\"main\":") {
+		// Look for .js extension in main field
+		mainIdx := strings.Index(content, "\"main\":")
+		if mainIdx != -1 {
+			end := mainIdx + 80
+			if end > len(content) {
+				end = len(content)
+			}
+			mainSection := content[mainIdx:end]
+			if strings.Contains(mainSection, ".js\"") && !strings.Contains(mainSection, ".d.ts") {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // detectIndexNowKeyFile checks for IndexNow key files (32-char hex .txt files) in web roots
